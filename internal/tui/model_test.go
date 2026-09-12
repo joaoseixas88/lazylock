@@ -1,52 +1,48 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/joaoseixas88/lazylock/internal/domain"
 )
 
-func TestNavigationDrillsIntoContextAndMasksSecretValues(t *testing.T) {
+func TestViewRendersPersistentProjectContextAndSecretPanels(t *testing.T) {
+	view := New(domain.DemoCatalog()).View()
+
+	for _, label := range []string{"Projects", "Paths / Environments", "Actions", "Secrets"} {
+		if !strings.Contains(view, label) {
+			t.Fatalf("view does not contain %q", label)
+		}
+	}
+	if !strings.Contains(view, "STRIPE_SECRET_KEY=••••••••") {
+		t.Fatal("secrets must be visible and masked from the first render")
+	}
+}
+
+func TestPanelSelectionChangesSecretContextAndHidesRevealedValue(t *testing.T) {
 	model := New(domain.DemoCatalog())
-
-	for range 4 {
-		model = send(model, tea.KeyMsg{Type: tea.KeyEnter})
+	model = send(model, tea.KeyMsg{Type: tea.KeyTab})
+	if model.activePane != contextPane {
+		t.Fatalf("activePane = %v, want contextPane", model.activePane)
 	}
 
-	if model.level != secretsLevel {
-		t.Fatalf("level = %v, want secretsLevel", model.level)
-	}
-	if model.selectedFolderID == "" {
-		t.Fatal("expected a selected folder")
-	}
-	if model.revealValue {
-		t.Fatal("secret values must start hidden")
+	model = send(model, tea.KeyMsg{Type: tea.KeyDown})
+	if model.contextCursor != 1 {
+		t.Fatalf("contextCursor = %d, want 1", model.contextCursor)
 	}
 
+	model = send(model, tea.KeyMsg{Type: tea.KeyTab})
 	model = send(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(" ")})
 	if !model.revealValue {
 		t.Fatal("space should reveal the selected secret value")
 	}
 
-	model = send(model, tea.KeyMsg{Type: tea.KeyDown})
+	model = send(model, tea.KeyMsg{Type: tea.KeyTab})
+	model = send(model, tea.KeyMsg{Type: tea.KeyUp})
 	if model.revealValue {
-		t.Fatal("changing the selected secret must hide its value")
-	}
-}
-
-func TestNavigationBackClearsDependentSelections(t *testing.T) {
-	model := New(domain.DemoCatalog())
-	for range 4 {
-		model = send(model, tea.KeyMsg{Type: tea.KeyEnter})
-	}
-
-	model = send(model, tea.KeyMsg{Type: tea.KeyEsc})
-	if model.level != foldersLevel {
-		t.Fatalf("level = %v, want foldersLevel", model.level)
-	}
-	if model.selectedFolderID != "" {
-		t.Fatalf("selectedFolderID = %q, want empty", model.selectedFolderID)
+		t.Fatal("changing the selected context must hide its value")
 	}
 }
 
