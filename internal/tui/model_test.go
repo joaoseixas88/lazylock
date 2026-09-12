@@ -21,6 +21,9 @@ func TestViewRendersPersistentPanelsWithPanelHotkeys(t *testing.T) {
 	if !strings.Contains(view, "STRIPE_SECRET_KEY=••••••••") {
 		t.Fatal("secrets must be visible and masked from the first render")
 	}
+	if strings.Contains(view, "1 projects • 2 context") {
+		t.Fatal("panel focus shortcuts belong in panel titles, not the footer")
+	}
 }
 
 func TestPanelHotkeysFocusPanelsAndResizeUsesTerminalDimensions(t *testing.T) {

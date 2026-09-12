@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -24,8 +23,6 @@ var (
 	titleStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("63"))
 	selectedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("86")).Bold(true)
 	mutedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	panelStyle    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240")).Padding(0, 1)
-	focusedStyle  = panelStyle.Copy().BorderForeground(lipgloss.Color("63"))
 )
 
 type keyMap struct{ Up, Down, Project, Context, Actions, Secrets, Reveal, Quit key.Binding }
@@ -38,16 +35,11 @@ func defaultKeys() keyMap {
 		Reveal: key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "reveal")), Quit: key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 	}
 }
-func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Project, k.Context, k.Actions, k.Secrets, k.Up, k.Down, k.Reveal, k.Quit}
-}
-func (k keyMap) FullHelp() [][]key.Binding { return [][]key.Binding{k.ShortHelp()} }
 
 type context struct{ folderID, environment, folder string }
 
 type Model struct {
 	catalog                                                                           domain.Catalog
-	help                                                                              help.Model
 	keys                                                                              keyMap
 	activePane                                                                        pane
 	projectCursor, contextCursor, secretCursor                                        int
@@ -57,7 +49,7 @@ type Model struct {
 }
 
 func New(catalog domain.Catalog) Model {
-	m := Model{catalog: catalog, help: help.New(), keys: defaultKeys()}
+	m := Model{catalog: catalog, keys: defaultKeys()}
 	connections := catalog.Connections()
 	if len(connections) > 0 {
 		m.connectionID = connections[0].ID
@@ -106,9 +98,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) resize(width, height int) {
 	m.width, m.height = width, height
-	m.leftWidth = max(26, width/3)
-	m.rightWidth = max(30, width-m.leftWidth-1)
-	available := max(15, height-4)
+	contentWidth := min(max(56, width-6), 132)
+	m.leftWidth = max(26, contentWidth/3)
+	m.rightWidth = max(30, contentWidth-m.leftWidth-2)
+	available := max(15, height-5)
 	m.projectHeight = max(5, available/4)
 	m.actionsHeight = max(5, available/5)
 	m.contextHeight = max(5, available-m.projectHeight-m.actionsHeight-2)
@@ -156,34 +149,55 @@ func (m Model) secrets() []domain.Secret {
 }
 
 func (m Model) View() string {
-	left := lipgloss.JoinVertical(lipgloss.Left, m.panel("[1] Projects", m.projectItems(), projectsPane, m.leftWidth, m.projectHeight), m.panel("[2] Paths / Environments", m.contextItems(), contextPane, m.leftWidth, m.contextHeight), m.actionsPanel())
-	right := m.panel("[4] Secrets", m.secretItems(), secretsPane, m.rightWidth, m.projectHeight+m.contextHeight+m.actionsHeight+4)
-	return strings.Join([]string{titleStyle.Render("LazyLock"), mutedStyle.Render(m.location()), lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right), mutedStyle.Render(m.help.View(m.keys))}, "\n")
+	left := lipgloss.JoinVertical(lipgloss.Left,
+		m.panel("[1] Projects", m.projectItems(), projectsPane, m.leftWidth, m.projectHeight), "",
+		m.panel("[2] Paths / Environments", m.contextItems(), contextPane, m.leftWidth, m.contextHeight), "",
+		m.actionsPanel(),
+	)
+	right := m.panel("[4] Secrets", m.secretItems(), secretsPane, m.rightWidth, m.projectHeight+m.contextHeight+m.actionsHeight+6)
+	body := lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right)
+	header := mutedStyle.Render("LazyLock  /  " + m.location())
+	footer := mutedStyle.Render("↑/k up  •  ↓/j down  •  space reveal  •  q quit")
+	return "\n" + lipgloss.PlaceHorizontal(m.width, lipgloss.Center, header) + "\n\n" + lipgloss.PlaceHorizontal(m.width, lipgloss.Center, body) + "\n" + lipgloss.PlaceHorizontal(m.width, lipgloss.Center, footer)
 }
 func (m Model) panel(title string, items []string, target pane, width, height int) string {
-	content := titleStyle.Render(title)
-	if len(items) == 0 {
-		content += "\n\n" + mutedStyle.Render("No items found.")
+	lines := items
+	if len(lines) == 0 {
+		lines = []string{mutedStyle.Render("No items found.")}
 	}
-	for i, item := range items {
-		prefix := "  "
+	for i, item := range lines {
 		if target == m.activePane && i == m.cursorFor(target) {
-			prefix = selectedStyle.Render("› ")
+			lines[i] = selectedStyle.Render("› ") + item
+		} else {
+			lines[i] = "  " + item
 		}
-		content += "\n" + prefix + item
 	}
-	style := panelStyle
-	if target == m.activePane {
-		style = focusedStyle
-	}
-	return style.Width(width).Height(height).Render(content)
+	return frame(title, lines, width, height, target == m.activePane)
 }
 func (m Model) actionsPanel() string {
-	style := panelStyle
-	if m.activePane == actionsPane {
-		style = focusedStyle
+	return frame("[3] Actions", []string{mutedStyle.Render("space  reveal value"), "", mutedStyle.Render("Export, copy, and edit"), mutedStyle.Render("arrive in the next milestone.")}, m.leftWidth, m.actionsHeight, m.activePane == actionsPane)
+}
+
+func frame(title string, lines []string, width, height int, focused bool) string {
+	width, height = max(12, width), max(3, height)
+	border := mutedStyle
+	if focused {
+		border = selectedStyle
 	}
-	return style.Width(m.leftWidth).Height(m.actionsHeight).Render(titleStyle.Render("[3] Actions") + "\n\n" + mutedStyle.Render("space  reveal value\n\nExport, copy, and edit\narrive in the next milestone."))
+	titleText := titleStyle.Render(title)
+	top := border.Render("╭─") + titleText + border.Render(strings.Repeat("─", max(0, width-lipgloss.Width(title)-3))+"╮")
+	innerWidth, innerHeight := width-2, height-2
+	content := make([]string, 0, innerHeight)
+	content = append(content, lines...)
+	for len(content) < innerHeight {
+		content = append(content, "")
+	}
+	content = content[:innerHeight]
+	for i, line := range content {
+		content[i] = border.Render("│") + lipgloss.NewStyle().Width(innerWidth).Render(line) + border.Render("│")
+	}
+	bottom := border.Render("╰" + strings.Repeat("─", width-2) + "╯")
+	return strings.Join(append([]string{top}, append(content, bottom)...), "\n")
 }
 func (m Model) cursorFor(target pane) int {
 	if target == projectsPane {
