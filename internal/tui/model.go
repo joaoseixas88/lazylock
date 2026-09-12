@@ -16,6 +16,7 @@ type pane int
 const (
 	projectsPane pane = iota
 	contextPane
+	actionsPane
 	secretsPane
 )
 
@@ -27,100 +28,97 @@ var (
 	focusedStyle  = panelStyle.Copy().BorderForeground(lipgloss.Color("63"))
 )
 
-type keyMap struct {
-	Up     key.Binding
-	Down   key.Binding
-	Next   key.Binding
-	Prev   key.Binding
-	Reveal key.Binding
-	Quit   key.Binding
-}
+type keyMap struct{ Up, Down, Project, Context, Actions, Secrets, Reveal, Quit key.Binding }
 
 func defaultKeys() keyMap {
 	return keyMap{
-		Up:     key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
-		Down:   key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
-		Next:   key.NewBinding(key.WithKeys("tab", "right", "l"), key.WithHelp("tab/l", "next pane")),
-		Prev:   key.NewBinding(key.WithKeys("shift+tab", "left", "h"), key.WithHelp("shift+tab/h", "previous pane")),
-		Reveal: key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "reveal")),
-		Quit:   key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
+		Up: key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")), Down: key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
+		Project: key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "projects")), Context: key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "context")),
+		Actions: key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "actions")), Secrets: key.NewBinding(key.WithKeys("4"), key.WithHelp("4", "secrets")),
+		Reveal: key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "reveal")), Quit: key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 	}
 }
-
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Next, k.Prev, k.Reveal, k.Quit}
+	return []key.Binding{k.Project, k.Context, k.Actions, k.Secrets, k.Up, k.Down, k.Reveal, k.Quit}
 }
-
 func (k keyMap) FullHelp() [][]key.Binding { return [][]key.Binding{k.ShortHelp()} }
 
-type context struct {
-	environmentID string
-	folderID      string
-	label         string
-}
+type context struct{ folderID, environment, folder string }
 
 type Model struct {
-	catalog domain.Catalog
-	help    help.Model
-	keys    keyMap
-
-	activePane    pane
-	projectCursor int
-	contextCursor int
-	secretCursor  int
-	revealValue   bool
-
-	connectionID string
-	projectID    string
+	catalog                                                                           domain.Catalog
+	help                                                                              help.Model
+	keys                                                                              keyMap
+	activePane                                                                        pane
+	projectCursor, contextCursor, secretCursor                                        int
+	revealValue                                                                       bool
+	connectionID, projectID                                                           string
+	width, height, leftWidth, rightWidth, projectHeight, contextHeight, actionsHeight int
 }
 
 func New(catalog domain.Catalog) Model {
-	model := Model{catalog: catalog, help: help.New(), keys: defaultKeys()}
+	m := Model{catalog: catalog, help: help.New(), keys: defaultKeys()}
 	connections := catalog.Connections()
 	if len(connections) > 0 {
-		model.connectionID = connections[0].ID
-		projects := catalog.Projects(model.connectionID)
+		m.connectionID = connections[0].ID
+		projects := m.projects()
 		if len(projects) > 0 {
-			model.projectID = projects[0].ID
+			m.projectID = projects[0].ID
 		}
 	}
-	return model
+	m.resize(100, 30)
+	return m
 }
-
 func (m Model) Init() tea.Cmd { return nil }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	keyMsg, ok := msg.(tea.KeyMsg)
+	if size, ok := msg.(tea.WindowSizeMsg); ok {
+		m.resize(size.Width, size.Height)
+		return m, nil
+	}
+	k, ok := msg.(tea.KeyMsg)
 	if !ok {
 		return m, nil
 	}
-
 	switch {
-	case key.Matches(keyMsg, m.keys.Quit):
+	case key.Matches(k, m.keys.Quit):
 		return m, tea.Quit
-	case key.Matches(keyMsg, m.keys.Next):
-		m.activePane = (m.activePane + 1) % 3
-		m.revealValue = false
-	case key.Matches(keyMsg, m.keys.Prev):
-		m.activePane = (m.activePane + 2) % 3
-		m.revealValue = false
-	case key.Matches(keyMsg, m.keys.Up):
+	case key.Matches(k, m.keys.Project):
+		m.activePane = projectsPane
+	case key.Matches(k, m.keys.Context):
+		m.activePane = contextPane
+	case key.Matches(k, m.keys.Actions):
+		m.activePane = actionsPane
+	case key.Matches(k, m.keys.Secrets):
+		m.activePane = secretsPane
+	case key.Matches(k, m.keys.Up):
 		m.move(-1)
-	case key.Matches(keyMsg, m.keys.Down):
+	case key.Matches(k, m.keys.Down):
 		m.move(1)
-	case m.activePane == secretsPane && key.Matches(keyMsg, m.keys.Reveal):
+	case m.activePane == secretsPane && key.Matches(k, m.keys.Reveal):
 		m.revealValue = !m.revealValue
+	}
+	if m.activePane != secretsPane {
+		m.revealValue = false
 	}
 	return m, nil
 }
 
+func (m *Model) resize(width, height int) {
+	m.width, m.height = width, height
+	m.leftWidth = max(26, width/3)
+	m.rightWidth = max(30, width-m.leftWidth-1)
+	available := max(15, height-4)
+	m.projectHeight = max(5, available/4)
+	m.actionsHeight = max(5, available/5)
+	m.contextHeight = max(5, available-m.projectHeight-m.actionsHeight-2)
+}
 func (m *Model) move(delta int) {
 	switch m.activePane {
 	case projectsPane:
-		count := len(m.projects())
-		m.projectCursor = clamp(m.projectCursor+delta, count)
-		if count > 0 {
-			m.projectID = m.projects()[m.projectCursor].ID
+		m.projectCursor = clamp(m.projectCursor+delta, len(m.projects()))
+		if projects := m.projects(); len(projects) > 0 {
+			m.projectID = projects[m.projectCursor].ID
 		}
 		m.contextCursor, m.secretCursor = 0, 0
 	case contextPane:
@@ -131,7 +129,6 @@ func (m *Model) move(delta int) {
 	}
 	m.revealValue = false
 }
-
 func clamp(value, count int) int {
 	if count == 0 || value < 0 {
 		return 0
@@ -141,23 +138,15 @@ func clamp(value, count int) int {
 	}
 	return value
 }
-
 func (m Model) projects() []domain.Project { return m.catalog.Projects(m.connectionID) }
-
-func (m Model) contexts() []context {
-	var values []context
-	for _, environment := range m.catalog.Environments(m.projectID) {
-		for _, folder := range m.catalog.Folders(environment.ID, "") {
-			values = append(values, context{
-				environmentID: environment.ID,
-				folderID:      folder.ID,
-				label:         fmt.Sprintf("%s  %s", environment.Name, mutedStyle.Render(folder.Name)),
-			})
+func (m Model) contexts() (values []context) {
+	for _, env := range m.catalog.Environments(m.projectID) {
+		for _, folder := range m.catalog.Folders(env.ID, "") {
+			values = append(values, context{folder.ID, env.Name, folder.Name})
 		}
 	}
-	return values
+	return
 }
-
 func (m Model) secrets() []domain.Secret {
 	contexts := m.contexts()
 	if len(contexts) == 0 {
@@ -167,22 +156,14 @@ func (m Model) secrets() []domain.Secret {
 }
 
 func (m Model) View() string {
-	left := lipgloss.JoinVertical(lipgloss.Left,
-		m.panel("Projects", m.projectItems(), projectsPane, 30, 9),
-		m.panel("Paths / Environments", m.contextItems(), contextPane, 30, 9),
-		m.actionsPanel(),
-	)
-	right := m.panel("Secrets", m.secretItems(), secretsPane, 62, 30)
-
-	body := lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
-	footer := mutedStyle.Render(m.help.View(m.keys))
-	return strings.Join([]string{titleStyle.Render("LazyLock"), mutedStyle.Render(m.location()), body, footer}, "\n")
+	left := lipgloss.JoinVertical(lipgloss.Left, m.panel("[1] Projects", m.projectItems(), projectsPane, m.leftWidth, m.projectHeight), m.panel("[2] Paths / Environments", m.contextItems(), contextPane, m.leftWidth, m.contextHeight), m.actionsPanel())
+	right := m.panel("[4] Secrets", m.secretItems(), secretsPane, m.rightWidth, m.projectHeight+m.contextHeight+m.actionsHeight+4)
+	return strings.Join([]string{titleStyle.Render("LazyLock"), mutedStyle.Render(m.location()), lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right), mutedStyle.Render(m.help.View(m.keys))}, "\n")
 }
-
 func (m Model) panel(title string, items []string, target pane, width, height int) string {
-	content := titleStyle.Render(title) + "\n"
+	content := titleStyle.Render(title)
 	if len(items) == 0 {
-		content += "\n" + mutedStyle.Render("No items found.")
+		content += "\n\n" + mutedStyle.Render("No items found.")
 	}
 	for i, item := range items {
 		prefix := "  "
@@ -197,58 +178,49 @@ func (m Model) panel(title string, items []string, target pane, width, height in
 	}
 	return style.Width(width).Height(height).Render(content)
 }
-
 func (m Model) actionsPanel() string {
-	content := titleStyle.Render("Actions") + "\n\n" + mutedStyle.Render("space  reveal value\n\nExport, copy, and edit\narrive in the next milestone.")
-	return panelStyle.Width(30).Height(8).Render(content)
+	style := panelStyle
+	if m.activePane == actionsPane {
+		style = focusedStyle
+	}
+	return style.Width(m.leftWidth).Height(m.actionsHeight).Render(titleStyle.Render("[3] Actions") + "\n\n" + mutedStyle.Render("space  reveal value\n\nExport, copy, and edit\narrive in the next milestone."))
 }
-
 func (m Model) cursorFor(target pane) int {
-	switch target {
-	case projectsPane:
+	if target == projectsPane {
 		return m.projectCursor
-	case contextPane:
+	}
+	if target == contextPane {
 		return m.contextCursor
-	default:
-		return m.secretCursor
 	}
+	return m.secretCursor
 }
-
-func (m Model) projectItems() []string {
-	projects := m.projects()
-	items := make([]string, len(projects))
-	for i, project := range projects {
-		items[i] = project.Name
+func (m Model) projectItems() (items []string) {
+	for _, project := range m.projects() {
+		items = append(items, project.Name)
 	}
-	return items
+	return
 }
-
-func (m Model) contextItems() []string {
-	contexts := m.contexts()
-	items := make([]string, len(contexts))
-	for i, item := range contexts {
-		items[i] = item.label
+func (m Model) contextItems() (items []string) {
+	for _, item := range m.contexts() {
+		items = append(items, fmt.Sprintf("%s  %s", item.environment, mutedStyle.Render(item.folder)))
 	}
-	return items
+	return
 }
-
-func (m Model) secretItems() []string {
-	secrets := m.secrets()
-	items := make([]string, len(secrets))
-	for i, secret := range secrets {
+func (m Model) secretItems() (items []string) {
+	for i, secret := range m.secrets() {
 		value := "••••••••"
 		if m.revealValue && i == m.secretCursor {
 			value = secret.Value
 		}
-		items[i] = fmt.Sprintf("%s=%s", secret.Key, value)
+		items = append(items, fmt.Sprintf("%s=%s", secret.Key, value))
 	}
-	return items
+	return
 }
-
 func (m Model) location() string {
 	contexts := m.contexts()
 	if len(contexts) == 0 {
 		return "Mock data"
 	}
-	return fmt.Sprintf("Mock data  /  %s", strings.ReplaceAll(contexts[m.contextCursor].label, "\x1b", ""))
+	item := contexts[m.contextCursor]
+	return fmt.Sprintf("Mock data  /  %s / %s", item.environment, item.folder)
 }

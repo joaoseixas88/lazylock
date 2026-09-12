@@ -8,10 +8,12 @@ import (
 	"github.com/joaoseixas88/lazylock/internal/domain"
 )
 
-func TestViewRendersPersistentProjectContextAndSecretPanels(t *testing.T) {
-	view := New(domain.DemoCatalog()).View()
+func TestViewRendersPersistentPanelsWithPanelHotkeys(t *testing.T) {
+	model := New(domain.DemoCatalog())
+	model = send(model, tea.WindowSizeMsg{Width: 120, Height: 36})
+	view := model.View()
 
-	for _, label := range []string{"Projects", "Paths / Environments", "Actions", "Secrets"} {
+	for _, label := range []string{"[1] Projects", "[2] Paths / Environments", "[3] Actions", "[4] Secrets"} {
 		if !strings.Contains(view, label) {
 			t.Fatalf("view does not contain %q", label)
 		}
@@ -21,9 +23,14 @@ func TestViewRendersPersistentProjectContextAndSecretPanels(t *testing.T) {
 	}
 }
 
-func TestPanelSelectionChangesSecretContextAndHidesRevealedValue(t *testing.T) {
+func TestPanelHotkeysFocusPanelsAndResizeUsesTerminalDimensions(t *testing.T) {
 	model := New(domain.DemoCatalog())
-	model = send(model, tea.KeyMsg{Type: tea.KeyTab})
+	model = send(model, tea.WindowSizeMsg{Width: 120, Height: 36})
+	if model.leftWidth <= 0 || model.rightWidth <= model.leftWidth {
+		t.Fatalf("unexpected layout widths: left=%d right=%d", model.leftWidth, model.rightWidth)
+	}
+
+	model = send(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
 	if model.activePane != contextPane {
 		t.Fatalf("activePane = %v, want contextPane", model.activePane)
 	}
@@ -33,13 +40,13 @@ func TestPanelSelectionChangesSecretContextAndHidesRevealedValue(t *testing.T) {
 		t.Fatalf("contextCursor = %d, want 1", model.contextCursor)
 	}
 
-	model = send(model, tea.KeyMsg{Type: tea.KeyTab})
+	model = send(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("4")})
 	model = send(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(" ")})
 	if !model.revealValue {
 		t.Fatal("space should reveal the selected secret value")
 	}
 
-	model = send(model, tea.KeyMsg{Type: tea.KeyTab})
+	model = send(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
 	model = send(model, tea.KeyMsg{Type: tea.KeyUp})
 	if model.revealValue {
 		t.Fatal("changing the selected context must hide its value")
