@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/joaoseixas88/lazylock/internal/domain"
 )
 
@@ -97,14 +98,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) resize(width, height int) {
-	m.width, m.height = width, height
-	contentWidth := min(max(56, width-6), 132)
-	m.leftWidth = max(26, contentWidth/3)
-	m.rightWidth = max(30, contentWidth-m.leftWidth-2)
-	available := max(15, height-5)
-	m.projectHeight = max(5, available/4)
-	m.actionsHeight = max(5, available/5)
-	m.contextHeight = max(5, available-m.projectHeight-m.actionsHeight-2)
+	m.width, m.height = max(0, width), max(0, height)
+	m.leftWidth = max(0, (m.width-1)/3)
+	m.rightWidth = max(0, m.width-m.leftWidth-1)
+	available := max(0, m.height-1) // The footer owns exactly one row.
+	m.projectHeight = available / 3
+	m.actionsHeight = available / 3
+	m.contextHeight = available - m.projectHeight - m.actionsHeight
 }
 func (m *Model) move(delta int) {
 	switch m.activePane {
@@ -149,16 +149,21 @@ func (m Model) secrets() []domain.Secret {
 }
 
 func (m Model) View() string {
+	if m.width == 0 || m.height == 0 {
+		return ""
+	}
+	if m.width < 16 || m.height < 4 {
+		return ansi.Truncate("Resize terminal · q quit", m.width, "")
+	}
 	left := lipgloss.JoinVertical(lipgloss.Left,
-		m.panel("[1] Projects", m.projectItems(), projectsPane, m.leftWidth, m.projectHeight), "",
-		m.panel("[2] Paths / Environments", m.contextItems(), contextPane, m.leftWidth, m.contextHeight), "",
+		m.panel("[1] Projects", m.projectItems(), projectsPane, m.leftWidth, m.projectHeight),
+		m.panel("[2] Paths / Environments", m.contextItems(), contextPane, m.leftWidth, m.contextHeight),
 		m.actionsPanel(),
 	)
-	right := m.panel("[4] Secrets", m.secretItems(), secretsPane, m.rightWidth, m.projectHeight+m.contextHeight+m.actionsHeight+6)
-	body := lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right)
-	header := mutedStyle.Render("LazyLock  /  " + m.location())
-	footer := mutedStyle.Render("↑/k up  •  ↓/j down  •  space reveal  •  q quit")
-	return "\n" + lipgloss.PlaceHorizontal(m.width, lipgloss.Center, header) + "\n\n" + lipgloss.PlaceHorizontal(m.width, lipgloss.Center, body) + "\n" + lipgloss.PlaceHorizontal(m.width, lipgloss.Center, footer)
+	right := m.panel("[4] Secrets", m.secretItems(), secretsPane, m.rightWidth, m.height-1)
+	body := lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
+	footer := mutedStyle.Render(ansi.Truncate("↑/k up  •  ↓/j down  •  space reveal  •  q quit", m.width, ""))
+	return body + "\n" + footer
 }
 func (m Model) panel(title string, items []string, target pane, width, height int) string {
 	lines := items
@@ -172,6 +177,12 @@ func (m Model) panel(title string, items []string, target pane, width, height in
 			lines[i] = "  " + item
 		}
 	}
+	// Keep the selected row visible when the terminal becomes shorter.
+	capacity := max(0, height-2)
+	if target != actionsPane && capacity > 0 {
+		start := max(0, m.cursorFor(target)-capacity+1)
+		lines = lines[min(start, len(lines)):]
+	}
 	return frame(title, lines, width, height, target == m.activePane)
 }
 func (m Model) actionsPanel() string {
@@ -179,13 +190,19 @@ func (m Model) actionsPanel() string {
 }
 
 func frame(title string, lines []string, width, height int, focused bool) string {
-	width, height = max(12, width), max(3, height)
+	if width < 3 || height < 1 {
+		return ""
+	}
 	border := mutedStyle
 	if focused {
 		border = selectedStyle
 	}
-	titleText := titleStyle.Render(title)
-	top := border.Render("╭─") + titleText + border.Render(strings.Repeat("─", max(0, width-lipgloss.Width(title)-3))+"╮")
+	caption := ansi.Truncate(title, width-3, "")
+	titleText := border.Render(caption)
+	top := border.Render("╭─") + titleText + border.Render(strings.Repeat("─", max(0, width-lipgloss.Width(caption)-3))+"╮")
+	if height == 1 {
+		return top
+	}
 	innerWidth, innerHeight := width-2, height-2
 	content := make([]string, 0, innerHeight)
 	content = append(content, lines...)
@@ -194,7 +211,8 @@ func frame(title string, lines []string, width, height int, focused bool) string
 	}
 	content = content[:innerHeight]
 	for i, line := range content {
-		content[i] = border.Render("│") + lipgloss.NewStyle().Width(innerWidth).Render(line) + border.Render("│")
+		line = ansi.Truncate(strings.ReplaceAll(line, "\n", " "), innerWidth, "…")
+		content[i] = border.Render("│") + line + strings.Repeat(" ", max(0, innerWidth-lipgloss.Width(line))) + border.Render("│")
 	}
 	bottom := border.Render("╰" + strings.Repeat("─", width-2) + "╯")
 	return strings.Join(append([]string{top}, append(content, bottom)...), "\n")

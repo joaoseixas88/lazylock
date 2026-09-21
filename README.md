@@ -13,9 +13,15 @@ Run it with:
 go run ./cmd/lazylock
 ```
 
-Use arrow keys or `j`/`k` to move, `enter` to open a context, `esc` to go
-back, `space` to reveal the selected secret, and `q` to quit. Secret values
+Use `1` for Projects, `2` for Paths / Environments, `3` for Actions, and `4`
+for Secrets. Use up/down arrows or `j`/`k` to move inside the focused panel,
+`space` to reveal the selected secret in Secrets, and `q` to quit. Secret values
 are hidden by default and hidden again whenever the selection changes.
+
+Panels fill the terminal width, with a single column between the left and right
+panels and no blank rows between the left panels. Titles contain focus shortcuts;
+the footer is left-aligned. On short terminals, content is clipped to preserve
+titles and borders. Below 16 columns or 4 rows, a resize message is displayed.
 
 ## Roadmap
 
