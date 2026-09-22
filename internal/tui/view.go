@@ -17,6 +17,9 @@ func (m Model) View() string {
 	if m.width < 16 || m.height < 4 {
 		return ansi.Truncate("Resize terminal · q quit", m.width, "")
 	}
+	if m.state != stateBrowsing {
+		return m.authView()
+	}
 	left := lipgloss.JoinVertical(lipgloss.Left,
 		m.panel("[1] Projects", m.projectItems(), m.projects.state, m.projects.err, projectsPane, m.leftWidth, m.projectHeight),
 		m.panel("[2] Paths / Environments", m.scopeItems(), m.scopes.state, m.scopes.err, contextPane, m.leftWidth, m.contextHeight),
@@ -24,7 +27,7 @@ func (m Model) View() string {
 	)
 	right := m.panel("[4] Secrets", m.secretItems(), m.secrets.state, m.secrets.err, secretsPane, m.rightWidth, m.height-1)
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
-	footer := mutedStyle.Render(ansi.Truncate("↑/k up  •  ↓/j down  •  space reveal  •  r retry  •  q quit", m.width, ""))
+	footer := mutedStyle.Render(ansi.Truncate(m.footer(), m.width, ""))
 	return body + "\n" + footer
 }
 
@@ -172,4 +175,19 @@ func (m Model) secretValue(i int, s domain.Secret) string {
 		return mutedStyle.Render("(empty)")
 	}
 	return s.Value
+}
+
+// footer names the account in play. Showing it is the one defence against a
+// local process winning the login callback race: the Infisical flow has no
+// nonce, so an unexpected email is what a user would notice.
+func (m Model) footer() string {
+	keys := "↑/k up  •  ↓/j down  •  space reveal  •  r retry  •  q quit"
+	if m.account == "" {
+		return keys
+	}
+	who := m.account
+	if m.store != nil {
+		who += " (" + m.store.Backend() + ")"
+	}
+	return keys + "  •  " + who
 }

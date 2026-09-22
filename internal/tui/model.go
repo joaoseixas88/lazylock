@@ -5,10 +5,17 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/joaoseixas88/lazylock/internal/config"
+	"github.com/joaoseixas88/lazylock/internal/credstore"
 	"github.com/joaoseixas88/lazylock/internal/domain"
+	"github.com/joaoseixas88/lazylock/internal/infisical"
 )
+
+// domainUnauthorized is the sentinel the auth flow reacts to.
+var domainUnauthorized = domain.ErrUnauthorized
 
 type pane int
 
@@ -48,27 +55,69 @@ type Model struct {
 	activePane  pane
 	revealValue bool
 
+	state   appState
+	cfg     config.Config
+	store   *credstore.Store
+	client  *infisical.Client
+	login   *infisical.BrowserLogin
+	input   textinput.Model
+	account string
+	authErr error
+
 	width, height, leftWidth, rightWidth, projectHeight, contextHeight, actionsHeight int
 }
 
+// New builds a model that browses a catalog directly, with no auth flow. It is
+// what the -demo flag and the tests use.
 func New(ctx context.Context, catalog domain.Catalog) Model {
 	m := Model{
-		load: loader{catalog: catalog, ctx: ctx, timeout: 15 * time.Second, debounce: 120 * time.Millisecond},
-		keys: defaultKeys(),
+		load:  loader{catalog: catalog, ctx: ctx, timeout: 15 * time.Second, debounce: 120 * time.Millisecond},
+		keys:  defaultKeys(),
+		state: stateBrowsing,
 	}
 	m.projects.begin() // so the first frame says "Loading…" instead of "No items found."
 	m.resize(100, 30)
 	return m
 }
 
-func (m Model) Init() tea.Cmd { return m.load.projects(m.projects.gen) }
+// NewApp builds the real model: it may have to ask for the instance URL and log
+// in before there is anything to browse.
+func NewApp(ctx context.Context, cfg config.Config, store *credstore.Store) Model {
+	m := New(ctx, nil)
+	m.cfg, m.store, m.account = cfg, store, cfg.Account
+	if cfg.Validate() != nil {
+		m.state = stateSetup
+		m.input = newInput("https://infisical.example.com", textinput.EchoNormal)
+		return m
+	}
+	m.client = infisical.NewClient(cfg.APIBase())
+	m.state = stateRestoring
+	return m
+}
+
+func (m Model) Init() tea.Cmd {
+	switch m.state {
+	case stateBrowsing:
+		return m.load.projects(m.projects.gen)
+	case stateRestoring:
+		return m.restoreSession()
+	default:
+		return textinput.Blink
+	}
+}
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if next, cmd, handled := m.handleAuth(msg); handled {
+		return next, cmd
+	}
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.resize(msg.Width, msg.Height)
 		return m, nil
 	case tea.KeyMsg:
+		if m.state != stateBrowsing {
+			return m.handleAuthKey(msg)
+		}
 		return m.handleKey(msg)
 	case projectsLoadedMsg:
 		return m.handleProjectsLoaded(msg)
