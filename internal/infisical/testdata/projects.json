@@ -1,0 +1,25 @@
+{
+  "projects": [
+    {
+      "id": "3f1c7a10-0000-4000-8000-000000000001",
+      "name": "Payments API",
+      "slug": "payments-api",
+      "type": "secret-manager",
+      "orgId": "aa000000-0000-4000-8000-000000000000",
+      "environments": [
+        { "id": "e0000000-0000-4000-8000-000000000001", "name": "Development", "slug": "dev" },
+        { "id": "e0000000-0000-4000-8000-000000000002", "name": "Production", "slug": "prod" }
+      ]
+    },
+    {
+      "id": "3f1c7a10-0000-4000-8000-000000000002",
+      "name": "Marketing Website",
+      "slug": "marketing-website",
+      "type": "secret-manager",
+      "orgId": "aa000000-0000-4000-8000-000000000000",
+      "environments": [
+        { "id": "e0000000-0000-4000-8000-000000000003", "name": "Production", "slug": "prod" }
+      ]
+    }
+  ]
+}
