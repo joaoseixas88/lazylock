@@ -1,31 +1,57 @@
 # LazyLock
 
-A keyboard-driven TUI for managing secrets and credentials across providers.
+A keyboard-driven TUI for reading secrets across providers, starting with
+Infisical.
 
 ## Current state
 
-The first milestone is a fully local prototype with deterministic mock data. It
-does not connect to Infisical or store credentials.
-
-Run it with:
+LazyLock reads a real Infisical instance: projects, environments, folder paths,
+and the secrets at each path, with values hidden until you ask for them. It is
+read-only — nothing it does can change a secret.
 
 ```sh
 go run ./cmd/lazylock
 ```
 
-Use `1` for Projects, `2` for Paths / Environments, `3` for Actions, and `4`
-for Secrets. Use up/down arrows or `j`/`k` to move inside the focused panel,
-`space` to reveal the selected secret in Secrets, and `q` to quit. Secret values
-are hidden by default and hidden again whenever the selection changes.
+On first run it asks for your instance URL (self-hosted or
+`https://app.infisical.com`), then opens your browser to log in, exactly the way
+`infisical login` does. If the browser cannot reach LazyLock — a remote session,
+or a browser on another machine — the login screen also accepts the token the
+Infisical page shows you.
 
-Panels fill the terminal width, with a single column between the left and right
-panels and no blank rows between the left panels. Titles contain focus shortcuts;
-the footer is left-aligned. On short terminals, content is clipped to preserve
-titles and borders. Below 16 columns or 4 rows, a resize message is displayed.
+The session is kept in your OS keyring, and falls back to a `0600` file under
+`$XDG_STATE_HOME/lazylock/` only when no Secret Service is running. The footer
+tells you which of the two is in use. There is no refresh token, because
+Infisical never hands one to a CLI; when the session expires you log in again.
+
+To look around without an instance:
+
+```sh
+go run ./cmd/lazylock -demo
+```
+
+## Keys
+
+`1` Projects, `2` Paths / Environments, `3` Actions, `4` Secrets. Arrows or
+`j`/`k` move inside the focused panel, `space` reveals the selected secret, `r`
+reloads the focused panel, and `q` quits. A value is hidden again whenever the
+selection changes. A secret you have permission to list but not to read says so
+rather than showing a blank.
+
+## Configuration
+
+`~/.config/lazylock/config.json` holds the instance URL and the last account.
+Environment variables override it and are never written back:
+
+| Variable | Effect |
+|---|---|
+| `LAZYLOCK_SITE_URL` | instance URL, with or without a trailing `/api` |
+| `LAZYLOCK_TOKEN` | use this JWT directly and skip both the keyring and login |
+| `LAZYLOCK_CONFIG` | path to the config file |
+| `LAZYLOCK_SESSION` | path to the session file, when the file fallback is in use |
 
 ## Roadmap
 
-The next milestone will research and document the Infisical API and Go SDK,
-then use that information to define the real provider adapter. CRUD, export,
-clipboard support, multi-select, and environment-to-environment copy are not
-part of this prototype.
+Writing, export, clipboard, multi-select and environment-to-environment copy are
+not implemented. Neither is a second provider, though the `domain.Catalog` port
+exists so one can be added without touching the TUI.
