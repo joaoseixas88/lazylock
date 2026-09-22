@@ -13,7 +13,7 @@ import (
 
 func TestViewRendersPersistentPanelsWithPanelHotkeys(t *testing.T) {
 	model := New(domain.DemoCatalog())
-	model = send(model, tea.WindowSizeMsg{Width: 120, Height: 36})
+	model = run(t, model, tea.WindowSizeMsg{Width: 120, Height: 36})
 	view := model.View()
 
 	for _, label := range []string{"[1] Projects", "[2] Paths / Environments", "[3] Actions", "[4] Secrets"} {
@@ -31,44 +31,39 @@ func TestViewRendersPersistentPanelsWithPanelHotkeys(t *testing.T) {
 
 func TestPanelHotkeysFocusPanelsAndResizeUsesTerminalDimensions(t *testing.T) {
 	model := New(domain.DemoCatalog())
-	model = send(model, tea.WindowSizeMsg{Width: 120, Height: 36})
+	model = run(t, model, tea.WindowSizeMsg{Width: 120, Height: 36})
 	if model.leftWidth <= 0 || model.rightWidth <= model.leftWidth {
 		t.Fatalf("unexpected layout widths: left=%d right=%d", model.leftWidth, model.rightWidth)
 	}
 
-	model = send(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
+	model = run(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
 	if model.activePane != contextPane {
 		t.Fatalf("activePane = %v, want contextPane", model.activePane)
 	}
 
-	model = send(model, tea.KeyMsg{Type: tea.KeyDown})
+	model = run(t, model, tea.KeyMsg{Type: tea.KeyDown})
 	if model.contextCursor != 1 {
 		t.Fatalf("contextCursor = %d, want 1", model.contextCursor)
 	}
 
-	model = send(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("4")})
-	model = send(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(" ")})
+	model = run(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("4")})
+	model = run(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(" ")})
 	if !model.revealValue {
 		t.Fatal("space should reveal the selected secret value")
 	}
 
-	model = send(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
-	model = send(model, tea.KeyMsg{Type: tea.KeyUp})
+	model = run(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
+	model = run(t, model, tea.KeyMsg{Type: tea.KeyUp})
 	if model.revealValue {
 		t.Fatal("changing the selected context must hide its value")
 	}
-}
-
-func send(model Model, msg tea.Msg) Model {
-	next, _ := model.Update(msg)
-	return next.(Model)
 }
 
 func TestResizeKeepsFramesAndFooterInsideTerminal(t *testing.T) {
 	m := New(domain.DemoCatalog())
 	for _, size := range [][2]int{{200, 50}, {80, 24}, {60, 10}, {40, 7}, {80, 4}, {120, 36}, {10, 2}, {1, 1}} {
 		t.Run(fmt.Sprint(size), func(t *testing.T) {
-			m = send(m, tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+			m = run(t, m, tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 			view := ansi.Strip(m.View())
 			if lipgloss.Height(view) > size[1] {
 				t.Fatalf("height overflow: %d > %d", lipgloss.Height(view), size[1])
