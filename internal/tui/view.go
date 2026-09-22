@@ -1,0 +1,175 @@
+package tui
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/joaoseixas88/lazylock/internal/domain"
+)
+
+func (m Model) View() string {
+	if m.width == 0 || m.height == 0 {
+		return ""
+	}
+	if m.width < 16 || m.height < 4 {
+		return ansi.Truncate("Resize terminal · q quit", m.width, "")
+	}
+	left := lipgloss.JoinVertical(lipgloss.Left,
+		m.panel("[1] Projects", m.projectItems(), m.projects.state, m.projects.err, projectsPane, m.leftWidth, m.projectHeight),
+		m.panel("[2] Paths / Environments", m.scopeItems(), m.scopes.state, m.scopes.err, contextPane, m.leftWidth, m.contextHeight),
+		m.actionsPanel(),
+	)
+	right := m.panel("[4] Secrets", m.secretItems(), m.secrets.state, m.secrets.err, secretsPane, m.rightWidth, m.height-1)
+	body := lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
+	footer := mutedStyle.Render(ansi.Truncate("↑/k up  •  ↓/j down  •  space reveal  •  r retry  •  q quit", m.width, ""))
+	return body + "\n" + footer
+}
+
+// statusLines turns a pane's load state into what it should show, and reports
+// whether those lines are real rows the cursor may point at.
+func statusLines(state loadState, err error, items []string) ([]string, bool) {
+	switch {
+	case state == stateIdle:
+		return nil, false
+	case state == stateLoading:
+		return []string{mutedStyle.Render("Loading…")}, false
+	case state == stateFailed:
+		lines := []string{errorStyle.Render("Error: " + oneLine(err))}
+		if errors.Is(err, domain.ErrUnauthorized) {
+			lines = []string{errorStyle.Render("Session expired."), mutedStyle.Render("Log in again to continue.")}
+		}
+		return append(lines, mutedStyle.Render("r  retry")), false
+	case len(items) == 0:
+		return []string{mutedStyle.Render("No items found.")}, false
+	}
+	return items, true
+}
+
+func oneLine(err error) string {
+	if err == nil {
+		return ""
+	}
+	return strings.Join(strings.Fields(err.Error()), " ")
+}
+
+func (m Model) panel(title string, items []string, state loadState, err error, target pane, width, height int) string {
+	body, selectable := statusLines(state, err, items)
+	lines := append([]string(nil), body...) // never alias the caller's slice
+	if selectable {
+		for i, item := range lines {
+			if target == m.activePane && i == m.cursorFor(target) {
+				lines[i] = selectedStyle.Render("› ") + item
+			} else {
+				lines[i] = "  " + item
+			}
+		}
+		// Keep the selected row visible when the terminal becomes shorter.
+		if capacity := max(0, height-2); capacity > 0 {
+			start := max(0, m.cursorFor(target)-capacity+1)
+			lines = lines[min(start, len(lines)):]
+		}
+	} else {
+		for i, item := range lines {
+			lines[i] = "  " + item
+		}
+	}
+	return frame(title, lines, width, height, target == m.activePane)
+}
+
+func (m Model) actionsPanel() string {
+	return frame("[3] Actions", []string{
+		mutedStyle.Render("  space  reveal value"),
+		mutedStyle.Render("  r      retry pane"),
+		"",
+		mutedStyle.Render("  Export, copy, and edit"),
+		mutedStyle.Render("  arrive in the next milestone."),
+	}, m.leftWidth, m.actionsHeight, m.activePane == actionsPane)
+}
+
+func frame(title string, lines []string, width, height int, focused bool) string {
+	if width < 3 || height < 1 {
+		return ""
+	}
+	border := mutedStyle
+	if focused {
+		border = selectedStyle
+	}
+	caption := ansi.Truncate(title, width-3, "")
+	titleText := border.Render(caption)
+	top := border.Render("╭─") + titleText + border.Render(strings.Repeat("─", max(0, width-lipgloss.Width(caption)-3))+"╮")
+	if height == 1 {
+		return top
+	}
+	innerWidth, innerHeight := width-2, height-2
+	content := make([]string, 0, innerHeight)
+	content = append(content, lines...)
+	for len(content) < innerHeight {
+		content = append(content, "")
+	}
+	content = content[:innerHeight]
+	for i, line := range content {
+		line = ansi.Truncate(strings.ReplaceAll(line, "\n", " "), innerWidth, "…")
+		content[i] = border.Render("│") + line + strings.Repeat(" ", max(0, innerWidth-lipgloss.Width(line))) + border.Render("│")
+	}
+	bottom := border.Render("╰" + strings.Repeat("─", width-2) + "╯")
+	return strings.Join(append([]string{top}, append(content, bottom)...), "\n")
+}
+
+func (m Model) cursorFor(target pane) int {
+	switch target {
+	case projectsPane:
+		return m.projects.cursor
+	case contextPane:
+		return m.scopes.cursor
+	default:
+		return m.secrets.cursor
+	}
+}
+
+func (m Model) projectItems() (items []string) {
+	for _, project := range m.projects.items {
+		items = append(items, project.Name)
+	}
+	return
+}
+
+func (m Model) scopeItems() (items []string) {
+	for _, item := range m.scopes.items {
+		items = append(items, fmt.Sprintf("%s  %s", item.EnvName, pathLabel(item.Path)))
+	}
+	return
+}
+
+// pathLabel dims all but the last segment, so nesting reads at a glance without
+// the pane needing expand/collapse state.
+func pathLabel(path string) string {
+	if i := strings.LastIndex(strings.TrimSuffix(path, "/"), "/"); i >= 0 {
+		return mutedStyle.Render(path[:i+1]) + path[i+1:]
+	}
+	return mutedStyle.Render(path)
+}
+
+func (m Model) secretItems() (items []string) {
+	for i, secret := range m.secrets.items {
+		items = append(items, fmt.Sprintf("%s=%s", secret.Key, m.secretValue(i, secret)))
+	}
+	return
+}
+
+// secretValue renders the three states a secret can be in. A hidden one says so
+// whether or not it is revealed, so pressing space on it is never a silent
+// no-op.
+func (m Model) secretValue(i int, s domain.Secret) string {
+	switch {
+	case s.Hidden:
+		return mutedStyle.Render("(no read access)")
+	case !m.revealValue || i != m.secrets.cursor:
+		return "••••••••"
+	case s.Value == "":
+		return mutedStyle.Render("(empty)")
+	}
+	return s.Value
+}

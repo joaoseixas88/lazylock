@@ -1,8 +1,11 @@
 package tui
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	"context"
 	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/joaoseixas88/lazylock/internal/domain"
 )
 
 // run delivers msgs and drains every command they produce, so a test observes
@@ -43,8 +46,17 @@ func exec(t *testing.T, cmd tea.Cmd) []tea.Msg {
 	}
 }
 
-// start brings a fresh model up the way the program would, by running Init.
+// start brings a fresh model up the way the program would, by running Init and
+// draining the cascade it triggers. The debounce is zeroed because tea.Tick
+// blocks for its whole duration inside a synchronous harness.
 func start(t *testing.T, m Model) Model {
 	t.Helper()
+	m.load.debounce = 0
 	return run(t, m, exec(t, m.Init())...)
+}
+
+// booted returns a fully loaded model over the given catalog.
+func booted(t *testing.T, cat domain.Catalog) Model {
+	t.Helper()
+	return start(t, New(context.Background(), cat))
 }

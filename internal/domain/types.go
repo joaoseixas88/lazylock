@@ -1,33 +1,27 @@
 package domain
 
-type Connection struct {
-	ID       string
-	Name     string
-	Provider string
-}
-
+// Project is one secret-manager project on the configured connection.
 type Project struct {
-	ID           string
-	ConnectionID string
-	Name         string
+	ID   string
+	Name string
 }
 
-type Environment struct {
-	ID        string
+// Scope is one row of the "Paths / Environments" pane and, at the same time,
+// the complete address of a secret list. Every field is a string so that Scope
+// stays comparable: the TUI compares scopes with == to decide whether a reply
+// still answers the question the user is asking.
+type Scope struct {
 	ProjectID string
-	Name      string
+	EnvSlug   string // provider-native environment key ("dev"); never displayed
+	EnvName   string // human label ("Development"); display only
+	Path      string // "/", "/services", "/services/api"
 }
 
-type Folder struct {
-	ID            string
-	EnvironmentID string
-	ParentID      string
-	Name          string
-}
-
+// Secret is one entry at a Scope. Hidden marks the ones a session may list but
+// not read, which is a different thing from a secret whose value is empty.
 type Secret struct {
-	ID       string
-	FolderID string
-	Key      string
-	Value    string
+	ID     string
+	Key    string
+	Value  string
+	Hidden bool
 }

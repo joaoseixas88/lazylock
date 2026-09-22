@@ -1,13 +1,12 @@
 package tui
 
 import (
-	"fmt"
-	"strings"
+	"context"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/joaoseixas88/lazylock/internal/domain"
 )
 
@@ -21,58 +20,78 @@ const (
 )
 
 var (
-	titleStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("63"))
 	selectedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("86")).Bold(true)
 	mutedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	errorStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 )
 
-type keyMap struct{ Up, Down, Project, Context, Actions, Secrets, Reveal, Quit key.Binding }
+type keyMap struct{ Up, Down, Project, Context, Actions, Secrets, Reveal, Retry, Quit key.Binding }
 
 func defaultKeys() keyMap {
 	return keyMap{
 		Up: key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")), Down: key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
 		Project: key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "projects")), Context: key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "context")),
 		Actions: key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "actions")), Secrets: key.NewBinding(key.WithKeys("4"), key.WithHelp("4", "secrets")),
-		Reveal: key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "reveal")), Quit: key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
+		Reveal: key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "reveal")), Retry: key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "retry")),
+		Quit: key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 	}
 }
 
-type context struct{ folderID, environment, folder string }
-
 type Model struct {
-	catalog                                                                           domain.Catalog
-	keys                                                                              keyMap
-	activePane                                                                        pane
-	projectCursor, contextCursor, secretCursor                                        int
-	revealValue                                                                       bool
-	connectionID, projectID                                                           string
+	load loader
+	keys keyMap
+
+	projects list[domain.Project]
+	scopes   list[domain.Scope]
+	secrets  list[domain.Secret]
+
+	activePane  pane
+	revealValue bool
+
 	width, height, leftWidth, rightWidth, projectHeight, contextHeight, actionsHeight int
 }
 
-func New(catalog domain.Catalog) Model {
-	m := Model{catalog: catalog, keys: defaultKeys()}
-	connections := catalog.Connections()
-	if len(connections) > 0 {
-		m.connectionID = connections[0].ID
-		projects := m.projects()
-		if len(projects) > 0 {
-			m.projectID = projects[0].ID
-		}
+func New(ctx context.Context, catalog domain.Catalog) Model {
+	m := Model{
+		load: loader{catalog: catalog, ctx: ctx, timeout: 15 * time.Second, debounce: 120 * time.Millisecond},
+		keys: defaultKeys(),
 	}
+	m.projects.begin() // so the first frame says "Loading…" instead of "No items found."
 	m.resize(100, 30)
 	return m
 }
-func (m Model) Init() tea.Cmd { return nil }
+
+func (m Model) Init() tea.Cmd { return m.load.projects(m.projects.gen) }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if size, ok := msg.(tea.WindowSizeMsg); ok {
-		m.resize(size.Width, size.Height)
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.resize(msg.Width, msg.Height)
+		return m, nil
+	case tea.KeyMsg:
+		return m.handleKey(msg)
+	case projectsLoadedMsg:
+		return m.handleProjectsLoaded(msg)
+	case scopesLoadedMsg:
+		return m.handleScopesLoaded(msg)
+	case secretsLoadedMsg:
+		return m.handleSecretsLoaded(msg)
+	case selectProjectMsg:
+		if p, ok := m.projects.current(); ok && p.ID == msg.projectID {
+			return m, m.loadScopes(p.ID)
+		}
+		return m, nil
+	case selectScopeMsg:
+		if s, ok := m.scopes.current(); ok && s == msg.at {
+			return m, m.loadSecrets(s)
+		}
 		return m, nil
 	}
-	k, ok := msg.(tea.KeyMsg)
-	if !ok {
-		return m, nil
-	}
+	return m, nil // bubbletea's internal traffic; nothing to do
+}
+
+func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
 	switch {
 	case key.Matches(k, m.keys.Quit):
 		return m, tea.Quit
@@ -85,16 +104,111 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case key.Matches(k, m.keys.Secrets):
 		m.activePane = secretsPane
 	case key.Matches(k, m.keys.Up):
-		m.move(-1)
+		cmd = m.move(-1)
 	case key.Matches(k, m.keys.Down):
-		m.move(1)
+		cmd = m.move(1)
+	case key.Matches(k, m.keys.Retry):
+		cmd = m.retry()
 	case m.activePane == secretsPane && key.Matches(k, m.keys.Reveal):
 		m.revealValue = !m.revealValue
 	}
 	if m.activePane != secretsPane {
 		m.revealValue = false
 	}
+	return m, cmd
+}
+
+func (m Model) handleProjectsLoaded(msg projectsLoadedMsg) (tea.Model, tea.Cmd) {
+	if !m.projects.accept(msg.gen, msg.items, msg.err) {
+		return m, nil
+	}
+	p, ok := m.projects.current()
+	if !ok {
+		m.scopes.reset()
+		m.secrets.reset()
+		return m, nil
+	}
+	return m, m.loadScopes(p.ID)
+}
+
+func (m Model) handleScopesLoaded(msg scopesLoadedMsg) (tea.Model, tea.Cmd) {
+	if p, ok := m.projects.current(); !ok || p.ID != msg.projectID {
+		return m, nil // answers for a project the user has left
+	}
+	if !m.scopes.accept(msg.gen, msg.items, msg.err) {
+		return m, nil
+	}
+	s, ok := m.scopes.current()
+	if !ok {
+		m.secrets.reset()
+		return m, nil
+	}
+	return m, m.loadSecrets(s)
+}
+
+func (m Model) handleSecretsLoaded(msg secretsLoadedMsg) (tea.Model, tea.Cmd) {
+	if s, ok := m.scopes.current(); !ok || s != msg.at {
+		return m, nil
+	}
+	if !m.secrets.accept(msg.gen, msg.items, msg.err) {
+		return m, nil
+	}
+	m.revealValue = false // never reveal a value the user did not just ask for
 	return m, nil
+}
+
+// loadScopes starts the pane [2] request and blanks pane [4], which can no
+// longer be showing the right thing. The reset bumps the secrets generation, so
+// a secrets reply already in flight for the previous project is dropped.
+func (m *Model) loadScopes(projectID string) tea.Cmd {
+	m.secrets.reset()
+	m.scopes.cursor = 0
+	return m.load.scopes(m.scopes.begin(), projectID)
+}
+
+func (m *Model) loadSecrets(at domain.Scope) tea.Cmd {
+	return m.load.secrets(m.secrets.begin(), at)
+}
+
+func (m *Model) retry() tea.Cmd {
+	switch m.activePane {
+	case projectsPane:
+		return m.load.projects(m.projects.begin())
+	case contextPane:
+		if p, ok := m.projects.current(); ok {
+			return m.loadScopes(p.ID)
+		}
+	case secretsPane:
+		if s, ok := m.scopes.current(); ok {
+			return m.loadSecrets(s)
+		}
+	}
+	return nil
+}
+
+func (m *Model) move(delta int) tea.Cmd {
+	m.revealValue = false
+	switch m.activePane {
+	case projectsPane:
+		before, _ := m.projects.current()
+		m.projects.move(delta)
+		after, ok := m.projects.current()
+		if !ok || after.ID == before.ID {
+			return nil // clamped at an end: nothing changed, so nothing to load
+		}
+		return m.load.settleProject(after.ID)
+	case contextPane:
+		before, _ := m.scopes.current()
+		m.scopes.move(delta)
+		after, ok := m.scopes.current()
+		if !ok || after == before {
+			return nil
+		}
+		return m.load.settleScope(after)
+	case secretsPane:
+		m.secrets.move(delta)
+	}
+	return nil
 }
 
 func (m *Model) resize(width, height int) {
@@ -105,146 +219,4 @@ func (m *Model) resize(width, height int) {
 	m.projectHeight = available / 3
 	m.actionsHeight = available / 3
 	m.contextHeight = available - m.projectHeight - m.actionsHeight
-}
-func (m *Model) move(delta int) {
-	switch m.activePane {
-	case projectsPane:
-		m.projectCursor = clamp(m.projectCursor+delta, len(m.projects()))
-		if projects := m.projects(); len(projects) > 0 {
-			m.projectID = projects[m.projectCursor].ID
-		}
-		m.contextCursor, m.secretCursor = 0, 0
-	case contextPane:
-		m.contextCursor = clamp(m.contextCursor+delta, len(m.contexts()))
-		m.secretCursor = 0
-	case secretsPane:
-		m.secretCursor = clamp(m.secretCursor+delta, len(m.secrets()))
-	}
-	m.revealValue = false
-}
-func clamp(value, count int) int {
-	if count == 0 || value < 0 {
-		return 0
-	}
-	if value >= count {
-		return count - 1
-	}
-	return value
-}
-func (m Model) projects() []domain.Project { return m.catalog.Projects(m.connectionID) }
-func (m Model) contexts() (values []context) {
-	for _, env := range m.catalog.Environments(m.projectID) {
-		for _, folder := range m.catalog.Folders(env.ID, "") {
-			values = append(values, context{folder.ID, env.Name, folder.Name})
-		}
-	}
-	return
-}
-func (m Model) secrets() []domain.Secret {
-	contexts := m.contexts()
-	if len(contexts) == 0 {
-		return nil
-	}
-	return m.catalog.Secrets(contexts[m.contextCursor].folderID)
-}
-
-func (m Model) View() string {
-	if m.width == 0 || m.height == 0 {
-		return ""
-	}
-	if m.width < 16 || m.height < 4 {
-		return ansi.Truncate("Resize terminal · q quit", m.width, "")
-	}
-	left := lipgloss.JoinVertical(lipgloss.Left,
-		m.panel("[1] Projects", m.projectItems(), projectsPane, m.leftWidth, m.projectHeight),
-		m.panel("[2] Paths / Environments", m.contextItems(), contextPane, m.leftWidth, m.contextHeight),
-		m.actionsPanel(),
-	)
-	right := m.panel("[4] Secrets", m.secretItems(), secretsPane, m.rightWidth, m.height-1)
-	body := lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
-	footer := mutedStyle.Render(ansi.Truncate("↑/k up  •  ↓/j down  •  space reveal  •  q quit", m.width, ""))
-	return body + "\n" + footer
-}
-func (m Model) panel(title string, items []string, target pane, width, height int) string {
-	lines := items
-	if len(lines) == 0 {
-		lines = []string{mutedStyle.Render("No items found.")}
-	}
-	for i, item := range lines {
-		if target == m.activePane && i == m.cursorFor(target) {
-			lines[i] = selectedStyle.Render("› ") + item
-		} else {
-			lines[i] = "  " + item
-		}
-	}
-	// Keep the selected row visible when the terminal becomes shorter.
-	capacity := max(0, height-2)
-	if target != actionsPane && capacity > 0 {
-		start := max(0, m.cursorFor(target)-capacity+1)
-		lines = lines[min(start, len(lines)):]
-	}
-	return frame(title, lines, width, height, target == m.activePane)
-}
-func (m Model) actionsPanel() string {
-	return frame("[3] Actions", []string{mutedStyle.Render("space  reveal value"), "", mutedStyle.Render("Export, copy, and edit"), mutedStyle.Render("arrive in the next milestone.")}, m.leftWidth, m.actionsHeight, m.activePane == actionsPane)
-}
-
-func frame(title string, lines []string, width, height int, focused bool) string {
-	if width < 3 || height < 1 {
-		return ""
-	}
-	border := mutedStyle
-	if focused {
-		border = selectedStyle
-	}
-	caption := ansi.Truncate(title, width-3, "")
-	titleText := border.Render(caption)
-	top := border.Render("╭─") + titleText + border.Render(strings.Repeat("─", max(0, width-lipgloss.Width(caption)-3))+"╮")
-	if height == 1 {
-		return top
-	}
-	innerWidth, innerHeight := width-2, height-2
-	content := make([]string, 0, innerHeight)
-	content = append(content, lines...)
-	for len(content) < innerHeight {
-		content = append(content, "")
-	}
-	content = content[:innerHeight]
-	for i, line := range content {
-		line = ansi.Truncate(strings.ReplaceAll(line, "\n", " "), innerWidth, "…")
-		content[i] = border.Render("│") + line + strings.Repeat(" ", max(0, innerWidth-lipgloss.Width(line))) + border.Render("│")
-	}
-	bottom := border.Render("╰" + strings.Repeat("─", width-2) + "╯")
-	return strings.Join(append([]string{top}, append(content, bottom)...), "\n")
-}
-func (m Model) cursorFor(target pane) int {
-	if target == projectsPane {
-		return m.projectCursor
-	}
-	if target == contextPane {
-		return m.contextCursor
-	}
-	return m.secretCursor
-}
-func (m Model) projectItems() (items []string) {
-	for _, project := range m.projects() {
-		items = append(items, project.Name)
-	}
-	return
-}
-func (m Model) contextItems() (items []string) {
-	for _, item := range m.contexts() {
-		items = append(items, fmt.Sprintf("%s  %s", item.environment, mutedStyle.Render(item.folder)))
-	}
-	return
-}
-func (m Model) secretItems() (items []string) {
-	for i, secret := range m.secrets() {
-		value := "••••••••"
-		if m.revealValue && i == m.secretCursor {
-			value = secret.Value
-		}
-		items = append(items, fmt.Sprintf("%s=%s", secret.Key, value))
-	}
-	return
 }
