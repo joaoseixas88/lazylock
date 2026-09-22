@@ -248,11 +248,3 @@ func (m Model) secretItems() (items []string) {
 	}
 	return
 }
-func (m Model) location() string {
-	contexts := m.contexts()
-	if len(contexts) == 0 {
-		return "Mock data"
-	}
-	item := contexts[m.contextCursor]
-	return fmt.Sprintf("Mock data  /  %s / %s", item.environment, item.folder)
-}
