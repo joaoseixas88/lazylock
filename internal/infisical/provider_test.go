@@ -166,7 +166,7 @@ func TestSecretsSendExactBooleansAndHonourHidden(t *testing.T) {
 	if len(secrets) != 3 {
 		t.Fatalf("Secrets() = %+v", secrets)
 	}
-	if secrets[0].Key != "DATABASE_URL" || secrets[0].Value == "" || secrets[0].Hidden {
+	if secrets[0].Key != "DATABASE_URL" || secrets[0].Value == "" || secrets[0].Hidden || secrets[0].Comment != "primary database" {
 		t.Fatalf("readable secret mapped wrong: %+v", secrets[0])
 	}
 	if !secrets[1].Hidden {

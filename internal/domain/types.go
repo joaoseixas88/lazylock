@@ -20,8 +20,9 @@ type Scope struct {
 // Secret is one entry at a Scope. Hidden marks the ones a session may list but
 // not read, which is a different thing from a secret whose value is empty.
 type Secret struct {
-	ID     string
-	Key    string
-	Value  string
-	Hidden bool
+	ID      string
+	Key     string
+	Value   string
+	Hidden  bool
+	Comment string
 }

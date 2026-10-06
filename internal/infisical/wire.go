@@ -57,6 +57,7 @@ type wireSecret struct {
 	SecretValue       string `json:"secretValue"`
 	SecretValueHidden bool   `json:"secretValueHidden"`
 	SecretPath        string `json:"secretPath"`
+	SecretComment     string `json:"secretComment"`
 }
 
 func mapProjects(list wireProjectList) []domain.Project {
@@ -126,7 +127,7 @@ func mapScopes(projectID string, tree map[string]wireEnvTree) []domain.Scope {
 func mapSecrets(list wireSecretList) []domain.Secret {
 	secrets := make([]domain.Secret, 0, len(list.Secrets))
 	for _, s := range list.Secrets {
-		secret := domain.Secret{ID: s.ID, Key: s.SecretKey, Hidden: s.SecretValueHidden}
+		secret := domain.Secret{ID: s.ID, Key: s.SecretKey, Hidden: s.SecretValueHidden, Comment: s.SecretComment}
 		// Defence in depth: a hidden secret must never carry a value, whatever
 		// the server chose to send.
 		if !s.SecretValueHidden {
