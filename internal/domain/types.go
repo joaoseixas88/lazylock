@@ -25,6 +25,8 @@ type Secret struct {
 	Value   string
 	Hidden  bool
 	Comment string
+	Tags    []string
+	Version int
 	// ImportedFrom is where an imported secret is stored. The zero Scope means
 	// the secret is stored at the scope that was listed.
 	ImportedFrom Scope

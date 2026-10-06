@@ -19,11 +19,15 @@ func (m *Model) toggleReveal() tea.Cmd {
 	if !ok {
 		return nil
 	}
-	if m.reveal.shows(s.ID) {
+	return m.toggleRevealOf(s.ID)
+}
+
+func (m *Model) toggleRevealOf(id string) tea.Cmd {
+	if m.reveal.shows(id) {
 		m.reveal.mask()
 		return nil
 	}
-	m.reveal.one = s.ID
+	m.reveal.one = id
 	return m.scheduleRemask()
 }
 

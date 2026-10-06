@@ -7,7 +7,7 @@ type keyMap struct {
 	Project, Context, Actions, Secrets key.Binding
 	Reveal, RevealAll, Copy, CopyLines key.Binding
 	Mark, MarkAll, Export, Retry, Back key.Binding
-	Filter                             key.Binding
+	Filter, Enter                      key.Binding
 	Help, Close, Quit, ForceQuit       key.Binding
 }
 
@@ -29,6 +29,7 @@ func defaultKeys() keyMap {
 		Retry:     key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "retry")),
 		Back:      key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "clear filter, then marks")),
 		Filter:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
+		Enter:     key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "details / next pane")),
 		Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Close:     key.NewBinding(key.WithKeys("esc", "q"), key.WithHelp("esc", "close")),
 		Quit:      key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
@@ -43,7 +44,7 @@ type bindingGroup struct {
 
 func (k keyMap) groups() []bindingGroup {
 	return []bindingGroup{
-		{"Panes", []key.Binding{k.Project, k.Context, k.Actions, k.Secrets, k.Up, k.Down, k.Filter, k.Retry}},
+		{"Panes", []key.Binding{k.Project, k.Context, k.Actions, k.Secrets, k.Up, k.Down, k.Enter, k.Filter, k.Retry}},
 		{"Secrets", []key.Binding{k.Reveal, k.RevealAll, k.Copy, k.CopyLines, k.Mark, k.MarkAll, k.Export}},
 		{"General", []key.Binding{k.Back, k.Help, k.Close, k.Quit, k.ForceQuit}},
 	}

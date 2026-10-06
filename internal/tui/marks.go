@@ -96,9 +96,11 @@ func (m Model) chosen() []domain.Secret {
 	return picked
 }
 
-func (m *Model) copyLines() tea.Cmd {
+func (m *Model) copyLines() tea.Cmd { return m.copyLinesOf(m.chosen()) }
+
+func (m *Model) copyLinesOf(secrets []domain.Secret) tea.Cmd {
 	var lines, leftOut []string
-	for _, s := range m.chosen() {
+	for _, s := range secrets {
 		if line, ok := export.Line(s); ok {
 			lines = append(lines, line)
 		} else {

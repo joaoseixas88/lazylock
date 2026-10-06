@@ -121,7 +121,7 @@ func TestExportWritesOnlyMarkedSecrets(t *testing.T) {
 		t.Fatalf("title = %q", title)
 	}
 	m = run(t, m, press("enter"), press("enter"), press("enter"))
-	if data, _ := readFile(t, filepath.Join(m.fx.Dir, "dev.env")); data != "STRIPE_SECRET_KEY=sk_test_demo_123\n" {
+	if data, _ := readFile(t, filepath.Join(m.fx.Dir, "dev.env")); data != "# Test-mode key from the Stripe dashboard\nSTRIPE_SECRET_KEY=sk_test_demo_123\n" {
 		t.Fatalf("wrote %q", data)
 	}
 }

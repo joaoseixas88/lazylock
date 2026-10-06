@@ -158,14 +158,14 @@ func (m Model) cursorFor(target pane) int {
 
 func (m Model) projectItems() (items []string) {
 	for _, project := range m.projects.visible() {
-		items = append(items, project.Name)
+		items = append(items, printable(project.Name))
 	}
 	return
 }
 
 func (m Model) scopeItems() (items []string) {
 	for _, item := range m.scopes.visible() {
-		items = append(items, fmt.Sprintf("%s  %s", item.EnvName, pathLabel(item.Path)))
+		items = append(items, fmt.Sprintf("%s  %s", printable(item.EnvName), pathLabel(printable(item.Path))))
 	}
 	return
 }
@@ -181,9 +181,9 @@ func pathLabel(path string) string {
 
 func (m Model) secretItems() (items []string) {
 	for _, secret := range m.secrets.visible() {
-		row := fmt.Sprintf("%s=%s", secret.Key, m.secretValue(secret))
+		row := fmt.Sprintf("%s=%s", printable(secret.Key), m.secretValue(secret))
 		if from := secret.ImportedFrom; from != (domain.Scope{}) {
-			row += mutedStyle.Render("  ⇠ " + m.envName(from.EnvSlug) + " " + from.Path)
+			row += mutedStyle.Render("  ⇠ " + printable(m.envName(from.EnvSlug)+" "+from.Path))
 		}
 		if m.marks.has(secret.ID) {
 			row = selectedStyle.Render("● ") + row
@@ -206,9 +206,9 @@ func (m Model) secretValue(s domain.Secret) string {
 		return mutedStyle.Render("(empty)")
 	}
 	if first, _, multiline := strings.Cut(s.Value, "\n"); multiline {
-		return first + mutedStyle.Render(" …")
+		return printable(first) + mutedStyle.Render(" …")
 	}
-	return s.Value
+	return printable(s.Value)
 }
 
 // footer names the account in play. Showing it is the one defence against a
@@ -223,7 +223,7 @@ func (m Model) footer() string {
 		if m.toast.level == toastError {
 			style = errorStyle
 		}
-		left = style.Render(m.toast.text)
+		left = style.Render(printable(m.toast.text))
 	}
 	if m.account == "" {
 		return left

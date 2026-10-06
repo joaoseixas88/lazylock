@@ -186,6 +186,8 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		cmd = m.retry()
 	case key.Matches(k, m.keys.Help):
 		m.overlay = helpOverlay{}
+	case key.Matches(k, m.keys.Enter):
+		m.enter()
 	case m.activePane == secretsPane && key.Matches(k, m.keys.Reveal):
 		cmd = m.toggleReveal()
 	case m.activePane == secretsPane && key.Matches(k, m.keys.RevealAll):
@@ -357,4 +359,17 @@ func (m *Model) resize(width, height int) {
 	m.projectHeight = available / 3
 	m.actionsHeight = available / 3
 	m.contextHeight = available - m.projectHeight - m.actionsHeight
+}
+
+func (m *Model) enter() {
+	switch m.activePane {
+	case projectsPane:
+		m.activePane = contextPane
+	case contextPane:
+		m.activePane = secretsPane
+	case secretsPane:
+		if s, ok := m.secrets.current(); ok {
+			m.overlay = detailsOverlay{id: s.ID}
+		}
+	}
 }

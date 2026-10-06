@@ -397,3 +397,15 @@ func TestImportedHiddenSecretNeverCarriesAValue(t *testing.T) {
 		t.Fatalf("SIGNING_KEY = %+v", key)
 	}
 }
+
+func TestSecretsCarryCommentTagsAndVersion(t *testing.T) {
+	catalog, _ := serve(t, http.StatusOK, "secrets.json")
+	secrets, err := catalog.Secrets(context.Background(), domain.Scope{ProjectID: "proj", EnvSlug: "dev", Path: "/"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := secrets[0]
+	if db.Comment != "primary database" || db.Version != 3 || !slices.Equal(db.Tags, []string{"database", "critical"}) {
+		t.Fatalf("DATABASE_URL = %+v; a tag without a name falls back to its slug", db)
+	}
+}

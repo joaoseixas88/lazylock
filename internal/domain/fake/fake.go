@@ -51,12 +51,13 @@ func DemoCatalog() *Catalog {
 		},
 		secrets: map[domain.Scope][]domain.Secret{
 			devRoot: {
-				{ID: "stripe-key", Key: "STRIPE_SECRET_KEY", Value: "sk_test_demo_123"},
-				{ID: "db-url", Key: "DATABASE_URL", Value: "postgres://demo:demo@localhost/payments"},
+				{ID: "stripe-key", Key: "STRIPE_SECRET_KEY", Value: "sk_test_demo_123", Comment: "Test-mode key from the Stripe dashboard", Tags: []string{"payments", "stripe"}, Version: 3},
+				{ID: "db-url", Key: "DATABASE_URL", Value: "postgres://demo:demo@localhost/payments", Comment: "Primary database", Version: 1},
 			},
 			devServices: {
-				{ID: "redis-url", Key: "REDIS_URL", Value: "redis://localhost:6379/0"},
-				{ID: "db-url", Key: "DATABASE_URL", Value: "postgres://demo:demo@localhost/payments", ImportedFrom: devRoot},
+				{ID: "redis-url", Key: "REDIS_URL", Value: "redis://localhost:6379/0", Version: 2},
+				{ID: "tls-cert", Key: "TLS_CERT", Value: "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIUDEMO\n-----END CERTIFICATE-----", Comment: "Self-signed, for local TLS only", Version: 1},
+				{ID: "db-url", Key: "DATABASE_URL", Value: "postgres://demo:demo@localhost/payments", Comment: "Primary database", Version: 1, ImportedFrom: devRoot},
 			},
 			prodRoot: {
 				{ID: "stripe-live-key", Key: "STRIPE_SECRET_KEY", Value: "sk_live_demo_456"},

@@ -61,12 +61,19 @@ type wireImport struct {
 }
 
 type wireSecret struct {
-	ID                string `json:"id"`
-	SecretKey         string `json:"secretKey"`
-	SecretValue       string `json:"secretValue"`
-	SecretValueHidden bool   `json:"secretValueHidden"`
-	SecretPath        string `json:"secretPath"`
-	SecretComment     string `json:"secretComment"`
+	ID                string    `json:"id"`
+	SecretKey         string    `json:"secretKey"`
+	SecretValue       string    `json:"secretValue"`
+	SecretValueHidden bool      `json:"secretValueHidden"`
+	SecretPath        string    `json:"secretPath"`
+	SecretComment     string    `json:"secretComment"`
+	Version           int       `json:"version"`
+	Tags              []wireTag `json:"tags"`
+}
+
+type wireTag struct {
+	Slug string `json:"slug"`
+	Name string `json:"name"`
 }
 
 func mapProjects(list wireProjectList) []domain.Project {
@@ -134,7 +141,10 @@ func mapScopes(projectID string, tree map[string]wireEnvTree) []domain.Scope {
 }
 
 func mapSecret(s wireSecret) domain.Secret {
-	secret := domain.Secret{ID: s.ID, Key: s.SecretKey, Hidden: s.SecretValueHidden, Comment: s.SecretComment}
+	secret := domain.Secret{ID: s.ID, Key: s.SecretKey, Hidden: s.SecretValueHidden, Comment: s.SecretComment, Version: s.Version}
+	for _, tag := range s.Tags {
+		secret.Tags = append(secret.Tags, cmp.Or(tag.Name, tag.Slug))
+	}
 	// Defence in depth: a hidden secret must never carry a value, whatever
 	// the server chose to send.
 	if !s.SecretValueHidden {

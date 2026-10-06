@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/joaoseixas88/lazylock/internal/clipboard"
+	"github.com/joaoseixas88/lazylock/internal/domain"
 )
 
 type copiedMsg struct {
@@ -29,9 +30,14 @@ func (m Model) copyText(what, text string) tea.Cmd {
 
 func (m *Model) copyValue() tea.Cmd {
 	s, ok := m.secrets.current()
-	switch {
-	case !ok:
+	if !ok {
 		return nil
+	}
+	return m.copySecret(s)
+}
+
+func (m *Model) copySecret(s domain.Secret) tea.Cmd {
+	switch {
 	case s.Hidden:
 		return m.notify(toastError, s.Key+" has no read access")
 	case s.Value == "":
