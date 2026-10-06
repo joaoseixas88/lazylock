@@ -200,3 +200,21 @@ func TestEndingASessionForgetsTheEnvironment(t *testing.T) {
 		t.Fatalf("group=%q preferred=%q", m.scopes.group, m.scopes.preferred)
 	}
 }
+
+func TestThePathSurvivesEnvironmentsThatLackIt(t *testing.T) {
+	m := run(t, onPaths(t, 160), press("down"), press("down"))
+	for range 3 {
+		m = run(t, m, press("]"))
+	}
+	if at := scopeAt(t, m); at.EnvSlug != "dev" || at.Path != "/services/api" {
+		t.Fatalf("back in Development the chosen folder must return, got %s %s", at.EnvSlug, at.Path)
+	}
+}
+
+func TestAProjectChangeForgetsTheChosenPath(t *testing.T) {
+	m := run(t, onPaths(t, 160), press("down"))
+	m = run(t, m, press("1"), press("down"))
+	if m.chosenPath != "" {
+		t.Fatalf("chosenPath = %q after changing project", m.chosenPath)
+	}
+}

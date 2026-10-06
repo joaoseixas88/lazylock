@@ -43,6 +43,7 @@ type Model struct {
 
 	activePane pane
 	menuCursor int
+	chosenPath string
 	reveal     reveal
 	marks      marks
 	overlay    overlay
@@ -290,6 +291,7 @@ func (m Model) handleSecretsLoaded(msg secretsLoadedMsg) (tea.Model, tea.Cmd) {
 // longer be showing the right thing. The reset bumps the secrets generation, so
 // a secrets reply already in flight for the previous project is dropped.
 func (m *Model) loadScopes(projectID string) tea.Cmd {
+	m.chosenPath = ""
 	m.secrets.reset()
 	m.scopes.cursor = 0
 	return m.load.scopes(m.scopes.begin(), projectID)
@@ -324,6 +326,7 @@ func (m *Model) retry() tea.Cmd {
 }
 
 func (m *Model) move(delta int) tea.Cmd {
+	defer m.rememberPath()
 	return m.reselect(m.activePane, func() {
 		switch m.activePane {
 		case projectsPane:

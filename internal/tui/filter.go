@@ -31,6 +31,7 @@ func (m Model) activeQuery() string {
 }
 
 func (m *Model) applyFilter(query string) tea.Cmd {
+	defer m.rememberPath()
 	return m.reselect(m.activePane, func() {
 		switch m.activePane {
 		case projectsPane:

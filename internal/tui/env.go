@@ -27,13 +27,25 @@ func (m *Model) cycleEnv(delta int) tea.Cmd {
 	}
 	at := slices.IndexFunc(envs, func(e environment) bool { return e.slug == m.scopes.group })
 	next := envs[((at+delta)%len(envs)+len(envs))%len(envs)]
-	before, had := m.scopes.current()
+	want := m.chosenPath
+	if current, ok := m.scopes.current(); ok && want == "" {
+		want = current.Path
+	}
 	return m.reselect(contextPane, func() {
 		m.scopes.setGroup(next.slug)
-		if had {
-			m.selectNearest(before.Path)
+		if want != "" {
+			m.selectNearest(want)
 		}
 	})
+}
+
+// rememberPath records the folder the user picked in the paths pane, so that
+// switching through an environment that lacks it, which falls back to a
+// parent, does not lose it for the next environment that has it.
+func (m *Model) rememberPath() {
+	if at, ok := m.scopes.current(); ok && m.activePane == contextPane {
+		m.chosenPath = at.Path
+	}
 }
 
 // selectNearest selects path in the active environment, or else its closest
