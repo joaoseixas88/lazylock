@@ -179,3 +179,31 @@ func (c *Catalog) Delete(ctx context.Context, at domain.Scope, keys []string) (d
 	}
 	return reply.outcome()
 }
+
+func (c *Catalog) Upsert(ctx context.Context, at domain.Scope, secrets []domain.Draft) (domain.Outcome, error) {
+	if len(secrets) == 0 {
+		return domain.Outcome{}, nil
+	}
+	type item struct {
+		SecretKey     string  `json:"secretKey"`
+		SecretValue   string  `json:"secretValue"`
+		SecretComment *string `json:"secretComment,omitempty"`
+	}
+	body := struct {
+		wireScope
+		Mode    string `json:"mode"`
+		Secrets []item `json:"secrets"`
+	}{wireScope: scopeOf(at), Mode: "upsert"}
+	for _, s := range secrets {
+		it := item{SecretKey: s.Key, SecretValue: s.Value}
+		if s.Comment != "" {
+			it.SecretComment = &s.Comment
+		}
+		body.Secrets = append(body.Secrets, it)
+	}
+	var reply wireWriteReply
+	if err := c.client.do(ctx, http.MethodPatch, "/v4/secrets/batch", nil, body, &reply); err != nil {
+		return domain.Outcome{}, err
+	}
+	return reply.outcome()
+}

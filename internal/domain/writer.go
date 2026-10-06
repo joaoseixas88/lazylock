@@ -31,6 +31,11 @@ type Writer interface {
 	// Delete removes the secrets stored at a scope under keys: all of them or
 	// none.
 	Delete(ctx context.Context, at Scope, keys []string) (Outcome, error)
+
+	// Upsert creates or overwrites the secrets at a scope, all of them or none.
+	// A draft's comment is only written when it is not empty, so a secret that
+	// already exists keeps its own.
+	Upsert(ctx context.Context, at Scope, secrets []Draft) (Outcome, error)
 }
 
 // Draft is a secret about to be written.

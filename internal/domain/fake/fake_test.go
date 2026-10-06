@@ -204,3 +204,20 @@ func mustRaw(t *testing.T, catalog *Catalog, at domain.Scope) []domain.Secret {
 	}
 	return secrets
 }
+
+func TestUpsertCreatesAndOverwritesKeepingTargetComments(t *testing.T) {
+	ctx := context.Background()
+	catalog := DemoCatalog()
+	root := scope("payments", "dev", "Development", "/")
+	drafts := []domain.Draft{{Key: "STRIPE_SECRET_KEY", Value: "sk_new"}, {Key: "FRESH", Value: "f", Comment: "brand new"}}
+	if _, err := catalog.Upsert(ctx, root, drafts); err != nil {
+		t.Fatal(err)
+	}
+	stored := keysOf(mustRaw(t, catalog, root))
+	if s := stored["STRIPE_SECRET_KEY"]; s.Value != "sk_new" || s.Comment != "Test-mode key from the Stripe dashboard" {
+		t.Fatalf("overwritten = %+v, want the old comment kept", s)
+	}
+	if s := stored["FRESH"]; s.Value != "f" || s.Comment != "brand new" {
+		t.Fatalf("created = %+v", s)
+	}
+}

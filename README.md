@@ -53,6 +53,7 @@ go run ./cmd/lazylock -demo
 | `n` | anywhere | new secret in the selected path |
 | `e` | Secrets, details | edit the selected secret's value, comment or key |
 | `d` | Secrets | delete the selected secret, or the marked ones |
+| `C` | Secrets | copy the marked secrets, or the selected one, to the same path in another environment |
 | `o` | anywhere | open the path in the Infisical web UI |
 | `r` | panes, comparison | reload |
 | `L` | anywhere | log out |
@@ -109,6 +110,14 @@ locked and is never sent unless you replace it with `ctrl+r`. Just before
 saving, LazyLock checks the secret's version; if someone else changed it after
 you opened it, the review comes back with what it holds now and asks again.
 
+Copying to another environment first shows the plan: keys it creates, values it
+overwrites, ones that are already the same and are skipped, and references that
+will resolve in the target. Imported secrets and values you cannot read are
+left out. The copy is one atomic request, and it plans again right before
+writing; if the target changed since you reviewed it, nothing is written and the
+new plan comes back for another look. In production, the target's name is the
+one you type.
+
 ## Configuration
 
 `~/.config/lazylock/config.json` holds the instance URL and the last account.
@@ -123,7 +132,5 @@ Environment variables override it and are never written back:
 
 ## Roadmap
 
-Copying secrets between environments is not implemented yet; `C` is kept for
-it. Neither is a second
-provider, though the `domain.Catalog` port exists so one can
-be added without touching the TUI.
+A second provider is not implemented, though the `domain.Catalog` and
+`domain.Writer` ports exist so one can be added without touching the TUI.

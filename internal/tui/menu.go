@@ -36,7 +36,7 @@ func (m Model) actions() []action {
 		{binding: k.Open},
 	}
 	if _, ok := m.writer(); ok {
-		actions = append(actions, action{binding: k.New}, action{binding: k.Edit}, action{binding: k.Delete})
+		actions = append(actions, action{binding: k.New}, action{binding: k.Edit}, action{binding: k.Delete}, action{binding: k.CopyTo})
 	}
 	return append(actions, []action{
 		{binding: k.Logout},

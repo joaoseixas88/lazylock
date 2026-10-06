@@ -204,3 +204,22 @@ func TestUpdateRenamesWithNewSecretName(t *testing.T) {
 		t.Fatalf("request = %s body = %v", got.path, got.body)
 	}
 }
+
+func TestUpsertIsOneAtomicBatchThatLeavesEmptyCommentsOut(t *testing.T) {
+	catalog, got := writeServer(t, http.StatusOK, `{"secrets":[{"id":"1"},{"id":"2"}]}`)
+	drafts := []domain.Draft{{Key: "NEW", Value: "n", Comment: "why"}, {Key: "OLD", Value: "o"}}
+	if _, err := catalog.Upsert(context.Background(), devApp, drafts); err != nil {
+		t.Fatal(err)
+	}
+	if got.method != http.MethodPatch || got.path != "/api/v4/secrets/batch" || got.body["mode"] != "upsert" {
+		t.Fatalf("request = %s %s body = %v", got.method, got.path, got.body)
+	}
+	items, _ := got.body["secrets"].([]any)
+	first, second := items[0].(map[string]any), items[1].(map[string]any)
+	if first["secretComment"] != "why" || first["secretValue"] != "n" {
+		t.Fatalf("first item = %v", first)
+	}
+	if _, ok := second["secretComment"]; ok {
+		t.Fatalf("an empty comment must be left out so the target keeps its own: %v", second)
+	}
+}

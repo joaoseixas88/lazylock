@@ -239,6 +239,28 @@ func (c *Catalog) Update(ctx context.Context, at domain.Scope, key string, ch do
 	})
 }
 
+func (c *Catalog) Upsert(ctx context.Context, at domain.Scope, secrets []domain.Draft) (domain.Outcome, error) {
+	return c.write(ctx, func() error {
+		stored := slices.Clone(c.stored[at])
+		for _, d := range secrets {
+			i := slices.IndexFunc(stored, func(s domain.Secret) bool { return s.Key == d.Key })
+			if i < 0 {
+				c.created++
+				stored = append(stored, domain.Secret{ID: fmt.Sprintf("created-%d", c.created), Key: d.Key, Version: 1})
+				i = len(stored) - 1
+			} else {
+				stored[i].Version++
+			}
+			stored[i].Value, stored[i].Hidden = c.Normalize(d.Value), false
+			if d.Comment != "" {
+				stored[i].Comment = d.Comment
+			}
+		}
+		c.stored[at] = stored
+		return nil
+	})
+}
+
 // Edit changes a stored secret as another user would, for tests of what
 // happens when someone else wrote first.
 func (c *Catalog) Edit(at domain.Scope, key, value string) {

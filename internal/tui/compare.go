@@ -128,13 +128,7 @@ func (m *Model) openCompare() tea.Cmd {
 	if !ok {
 		return m.notify(toastError, "Select a path to compare")
 	}
-	var candidates []domain.Scope
-	for _, s := range m.scopes.items {
-		if s.Path == at.Path && s.EnvSlug != at.EnvSlug &&
-			!slices.ContainsFunc(candidates, func(c domain.Scope) bool { return c.EnvSlug == s.EnvSlug }) {
-			candidates = append(candidates, s)
-		}
-	}
+	candidates := m.sameFolderIn(at)
 	switch len(candidates) {
 	case 0:
 		return m.notify(toastError, "No other environment has "+at.Path)

@@ -65,3 +65,15 @@ func parentPath(path string) string {
 	}
 	return "/"
 }
+
+// sameFolderIn lists one scope per other environment that has at's folder.
+func (m Model) sameFolderIn(at domain.Scope) []domain.Scope {
+	var scopes []domain.Scope
+	for _, s := range m.scopes.items {
+		if s.Path == at.Path && s.EnvSlug != at.EnvSlug &&
+			!slices.ContainsFunc(scopes, func(c domain.Scope) bool { return c.EnvSlug == s.EnvSlug }) {
+			scopes = append(scopes, s)
+		}
+	}
+	return scopes
+}
