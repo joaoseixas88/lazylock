@@ -160,7 +160,10 @@ func (m Model) handleAuth(msg tea.Msg) (Model, tea.Cmd, bool) {
 			m.authErr = msg.err
 			return m, nil, true
 		}
-		m.cfg.SiteURL = msg.siteURL
+		if m.cfg.SiteURL != msg.siteURL {
+			m.cfg.Account, m.account = "", ""
+		}
+		m.cfg.SiteURL, m.previous = msg.siteURL, nil
 		if err := config.Save(m.cfg); err != nil {
 			m.authErr = err
 			return m, nil, true
@@ -169,6 +172,16 @@ func (m Model) handleAuth(msg tea.Msg) (Model, tea.Cmd, bool) {
 		m.client = infisical.NewClient(m.cfg.APIBase())
 		m.state = stateRestoring
 		return m, m.restoreSession(), true
+
+	case sessionForgottenMsg:
+		if msg.err != nil {
+			cmd := m.notify(toastError, "Could not log out: "+oneLine(msg.err))
+			return m, cmd, true
+		}
+		m.endSession()
+		m.client.SetToken("")
+		m.account = ""
+		return m.toLogin(nil)
 
 	case loginStartedMsg:
 		if msg.err != nil {
@@ -250,6 +263,9 @@ func newInput(placeholder string, echo textinput.EchoMode) textinput.Model {
 
 // handleAuthKey drives the setup and login screens.
 func (m Model) handleAuthKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if k.Type == tea.KeyEsc && m.state == stateSetup && m.previous != nil {
+		return m.returnToPrevious()
+	}
 	switch k.Type {
 	case tea.KeyCtrlC, tea.KeyEsc:
 		m.closeLogin()

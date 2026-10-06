@@ -33,6 +33,11 @@ func (m Model) actions() []action {
 		{binding: k.Export},
 		{binding: k.Filter, label: "filter secrets"},
 		{binding: k.Open},
+		{binding: k.Logout},
+		{label: "switch instance", run: func(m Model) (Model, tea.Cmd) {
+			cmd := m.askSwitchInstance()
+			return m, cmd
+		}},
 		{binding: k.Help},
 	}
 }

@@ -53,14 +53,15 @@ type Model struct {
 	filtering   bool
 	filterInput textinput.Model
 
-	state   appState
-	cfg     config.Config
-	store   *credstore.Store
-	client  *infisical.Client
-	login   *infisical.BrowserLogin
-	input   textinput.Model
-	account string
-	authErr error
+	state    appState
+	cfg      config.Config
+	previous *config.Config
+	store    *credstore.Store
+	client   *infisical.Client
+	login    *infisical.BrowserLogin
+	input    textinput.Model
+	account  string
+	authErr  error
 
 	width, height, leftWidth, rightWidth, projectHeight, contextHeight, actionsHeight int
 }
@@ -209,6 +210,8 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		cmd = m.openExport()
 	case key.Matches(k, m.keys.Open):
 		cmd = m.openScope()
+	case key.Matches(k, m.keys.Logout):
+		cmd = m.askLogout()
 	case key.Matches(k, m.keys.Filter) && m.activePane != actionsPane:
 		m.filtering = true
 		m.filterInput = staticInput("/", m.activeQuery())

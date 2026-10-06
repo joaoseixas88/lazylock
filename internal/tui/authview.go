@@ -22,7 +22,7 @@ func (m Model) authView() string {
 			"",
 			m.input.View(),
 			"",
-			mutedStyle.Render("enter  connect     esc  quit"),
+			mutedStyle.Render("enter  connect     esc  " + m.setupEscape()),
 		}
 	case stateRestoring:
 		title = "lazylock"
@@ -66,4 +66,11 @@ func hostOf(siteURL string) string {
 		return "Infisical"
 	}
 	return trimmed
+}
+
+func (m Model) setupEscape() string {
+	if m.previous != nil {
+		return "back to " + hostOf(m.previous.SiteURL)
+	}
+	return "quit"
 }
