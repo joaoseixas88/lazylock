@@ -88,7 +88,7 @@ func TestEnterKeepsTheFilterAndEscClearsIt(t *testing.T) {
 	if m.filtering || m.secrets.query != "str" {
 		t.Fatalf("filtering=%v query=%q", m.filtering, m.secrets.query)
 	}
-	if view := ansi.Strip(m.View()); !strings.Contains(view, "[4] Secrets /str") {
+	if view := ansi.Strip(m.View()); !strings.Contains(view, "[4] Secrets · /str") {
 		t.Fatalf("the title must show the filter:\n%s", view)
 	}
 	m = run(t, m, press("esc"))
@@ -99,7 +99,8 @@ func TestEnterKeepsTheFilterAndEscClearsIt(t *testing.T) {
 
 func TestFilterPersistsAcrossScopes(t *testing.T) {
 	m := filtered(t, booted(t, fake.DemoCatalog()), "4", "stripe")
-	m = run(t, m, press("enter"), press("2"), press("down"), press("down"))
+	m = run(t, m, press("enter"), press("2"))
+	m = run(t, m, press("]"))
 	m = run(t, m, press("4"))
 	if s, _ := m.secrets.current(); s.Key != "STRIPE_SECRET_KEY" || len(m.secrets.visible()) != 1 {
 		t.Fatalf("the filter must apply to the next scope too: %v", m.secrets.visible())

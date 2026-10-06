@@ -73,7 +73,7 @@ func TestCompareOffersOnlyEnvironmentsWithThePath(t *testing.T) {
 	for _, s := range c.candidates {
 		names = append(names, s.EnvName)
 	}
-	if !slices.Equal(names, []string{"Production", "Staging"}) {
+	if !slices.Equal(names, []string{"Staging", "Production"}) {
 		t.Fatalf("candidates = %v", names)
 	}
 }
@@ -100,7 +100,7 @@ func TestCompareWithNoOtherEnvironmentSaysSo(t *testing.T) {
 }
 
 func TestCompareKeepsValuesMaskedUntilRevealed(t *testing.T) {
-	m := run(t, onScope(t, 0), press("c"), press("down"), press("enter"))
+	m := run(t, onScope(t, 0), press("c"), press("enter"))
 	view := ansi.Strip(m.View())
 	if !strings.Contains(view, "~ DATABASE_URL  ••••••••  →  ••••••••") || strings.Contains(view, "postgres://") {
 		t.Fatalf("values must stay masked:\n%s", view)
@@ -124,7 +124,7 @@ func TestCompareKeepsValuesMaskedUntilRevealed(t *testing.T) {
 }
 
 func TestHideSameRowsToggles(t *testing.T) {
-	m := run(t, onScope(t, 0), press("c"), press("down"), press("enter"))
+	m := run(t, onScope(t, 0), press("c"), press("enter"))
 	m = run(t, m, press("s"))
 	if view := ansi.Strip(m.View()); strings.Contains(view, "= STRIPE_SECRET_KEY") {
 		t.Fatalf("s must hide equal rows:\n%s", view)
@@ -156,7 +156,7 @@ func TestExpiredSessionDuringCompareSendsBackToLogin(t *testing.T) {
 }
 
 func TestCompareStaysInsideTheTerminal(t *testing.T) {
-	m := run(t, onScope(t, 0), press("c"), press("down"), press("enter"))
+	m := run(t, onScope(t, 0), press("c"), press("enter"))
 	m = run(t, m, press("a"))
 	for _, size := range terminalSizes {
 		t.Run(fmt.Sprint(size), func(t *testing.T) {

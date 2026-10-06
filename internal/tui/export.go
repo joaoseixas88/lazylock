@@ -82,7 +82,7 @@ func (e exportOverlay) title(Model) string {
 	if e.marked {
 		what = fmt.Sprintf("%d marked", len(e.secrets))
 	}
-	return fmt.Sprintf("[4] Export %s %s · %s", e.at.EnvName, e.at.Path, what)
+	return fmt.Sprintf("[4] Export %s · %s", printable(e.at.EnvName+" "+e.at.Path), what)
 }
 
 func (e exportOverlay) body(m Model, _, _ int) []string {

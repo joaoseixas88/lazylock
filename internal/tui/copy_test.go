@@ -46,7 +46,7 @@ func TestCopyPutsTheSelectedValueOnTheClipboard(t *testing.T) {
 
 func TestCopyingAHiddenSecretNeverReachesTheClipboard(t *testing.T) {
 	m := onSecrets(t)
-	m = run(t, m, press("2"), press("down"), press("down"))
+	m = toProduction(t, m)
 	m, spy := withClipboard(m, clipboard.System, nil)
 	m = run(t, m, press("4"), press("down"), press("y"))
 	if len(spy.texts) != 0 {

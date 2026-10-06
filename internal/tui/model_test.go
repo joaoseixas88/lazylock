@@ -18,7 +18,7 @@ func TestViewRendersPersistentPanelsWithPanelHotkeys(t *testing.T) {
 	model = run(t, model, tea.WindowSizeMsg{Width: 120, Height: 36})
 	view := model.View()
 
-	for _, label := range []string{"[1] Projects", "[2] Paths / Environments", "[3] Actions", "[4] Secrets"} {
+	for _, label := range []string{"[1] Projects", "[2] ›Development", "[3] Actions", "[4] Secrets"} {
 		if !strings.Contains(view, label) {
 			t.Fatalf("view does not contain %q", label)
 		}
@@ -211,8 +211,7 @@ func TestHiddenSecretNeverRevealsAValue(t *testing.T) {
 	m = run(t, m, tea.WindowSizeMsg{Width: 120, Height: 36})
 
 	// Production root is the scope holding the hidden secret.
-	m = run(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")},
-		tea.KeyMsg{Type: tea.KeyDown}, tea.KeyMsg{Type: tea.KeyDown})
+	m = toProduction(t, m)
 	if at, _ := m.scopes.current(); at.Path != "/" || at.EnvSlug != "prod" {
 		t.Fatalf("expected to be on prod /, got %+v", at)
 	}
@@ -229,8 +228,7 @@ func TestHiddenSecretNeverRevealsAValue(t *testing.T) {
 func TestRevealedEmptySecretIsNotMistakenForAValue(t *testing.T) {
 	m := booted(t, fake.DemoCatalog())
 	m = run(t, m, tea.WindowSizeMsg{Width: 120, Height: 36})
-	m = run(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")},
-		tea.KeyMsg{Type: tea.KeyDown}, tea.KeyMsg{Type: tea.KeyDown})
+	m = toProduction(t, m)
 	m = run(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("4")},
 		tea.KeyMsg{Type: tea.KeyDown}, tea.KeyMsg{Type: tea.KeyDown},
 		tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(" ")})

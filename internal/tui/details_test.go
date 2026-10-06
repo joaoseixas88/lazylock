@@ -53,7 +53,7 @@ func TestDetailsShowCommentTagsVersionAndOrigin(t *testing.T) {
 
 func TestDetailsOfAHiddenSecretNeverShowAValue(t *testing.T) {
 	m := booted(t, fake.DemoCatalog())
-	m = run(t, m, tea.WindowSizeMsg{Width: 120, Height: 36}, press("2"), press("down"), press("down"))
+	m = toProduction(t, run(t, m, tea.WindowSizeMsg{Width: 120, Height: 36}))
 	m = run(t, m, press("4"), press("down"), press("enter"), press(" "), press("a"))
 	if view := ansi.Strip(m.View()); !strings.Contains(view, "(no read access)") {
 		t.Fatalf("expected the hidden secret to say so:\n%s", view)

@@ -65,6 +65,15 @@ func booted(t *testing.T, cat domain.Catalog) Model {
 	return start(t, New(context.Background(), cat))
 }
 
+// toProduction switches the demo from Development to Production one key per
+// run, so each switch settles before the next key arrives.
+func toProduction(t *testing.T, m Model) Model {
+	t.Helper()
+	m = run(t, m, press("2"))
+	m = run(t, m, press("]"))
+	return run(t, m, press("]"))
+}
+
 func press(k string) tea.KeyMsg {
 	switch k {
 	case "esc":

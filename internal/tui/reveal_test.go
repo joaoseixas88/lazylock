@@ -29,7 +29,7 @@ func TestRevealAllShowsEveryReadableValue(t *testing.T) {
 
 func TestRevealAllNeverShowsAHiddenSecret(t *testing.T) {
 	m := booted(t, fake.DemoCatalog())
-	m = run(t, m, tea.WindowSizeMsg{Width: 120, Height: 36}, press("2"), press("down"), press("down"))
+	m = toProduction(t, run(t, m, tea.WindowSizeMsg{Width: 120, Height: 36}))
 	m = run(t, m, press("4"), press("a"))
 	view := ansi.Strip(m.View())
 	if !strings.Contains(view, "SIGNING_KEY=(no read access)") || !strings.Contains(view, "STRIPE_SECRET_KEY=sk_live_demo_456") {

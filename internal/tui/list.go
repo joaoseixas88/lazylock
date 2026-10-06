@@ -12,7 +12,8 @@ const (
 )
 
 // list is one pane's worth of remote data plus the cursor over it. rows holds
-// the indexes of the items that match query, and cursor points into rows.
+// the indexes of the items that are in the active group and match query, and
+// cursor points into rows.
 type list[T any] struct {
 	state  loadState
 	err    error
@@ -22,6 +23,12 @@ type list[T any] struct {
 	gen    int // generation of the newest request; other generations are stale
 	query  string
 	label  func(T) string
+
+	// group is the group on screen; preferred is the one last chosen, kept even
+	// while a reload has to show another because the new items lack it.
+	groupOf   func(T) string
+	group     string
+	preferred string
 }
 
 // begin records that a request is going out and returns the generation its
@@ -43,14 +50,47 @@ func (l *list[T]) accept(gen int, items []T, err error) bool {
 		return true
 	}
 	l.state, l.err, l.items = stateLoaded, nil, items
+	l.pickGroup()
 	l.refilter()
 	l.cursor = clamp(l.cursor, len(l.rows))
 	return true
 }
 
+func (l *list[T]) pickGroup() {
+	if l.groupOf == nil || len(l.items) == 0 {
+		return
+	}
+	for _, item := range l.items {
+		if l.groupOf(item) == l.preferred {
+			l.group = l.preferred
+			return
+		}
+	}
+	l.group = l.groupOf(l.items[0])
+}
+
+func (l *list[T]) setGroup(group string) {
+	l.group, l.preferred = group, group
+	l.refilter()
+	l.cursor = 0
+}
+
+func (l *list[T]) selectWhere(match func(T) bool) bool {
+	for i, index := range l.rows {
+		if match(l.items[index]) {
+			l.cursor = i
+			return true
+		}
+	}
+	return false
+}
+
 // reset blanks the list and invalidates anything in flight for it. The filter
-// survives, so it still applies to whatever loads next.
-func (l *list[T]) reset() { l.gen++; *l = list[T]{gen: l.gen, query: l.query, label: l.label} }
+// and the group survive, so they still apply to whatever loads next.
+func (l *list[T]) reset() {
+	l.gen++
+	*l = list[T]{gen: l.gen, query: l.query, label: l.label, groupOf: l.groupOf, group: l.group, preferred: l.preferred}
+}
 
 // setQuery keeps the selected item selected when it still matches, and
 // otherwise moves to the first match.
@@ -74,6 +114,9 @@ func (l *list[T]) refilter() {
 	needle := strings.ToLower(l.query)
 	rows := make([]int, 0, len(l.items))
 	for i, item := range l.items {
+		if l.groupOf != nil && l.groupOf(item) != l.group {
+			continue
+		}
 		if needle == "" || l.label == nil || strings.Contains(strings.ToLower(l.label(item)), needle) {
 			rows = append(rows, i)
 		}

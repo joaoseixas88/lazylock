@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -21,8 +22,8 @@ func (m Model) View() string {
 		return m.authView()
 	}
 	left := lipgloss.JoinVertical(lipgloss.Left,
-		m.panel("[1] Projects", m.projects.query, m.projectItems(), m.projects.state, m.projects.err, projectsPane, m.leftWidth, m.projectHeight),
-		m.panel("[2] Paths / Environments", m.scopes.query, m.scopeItems(), m.scopes.state, m.scopes.err, contextPane, m.leftWidth, m.contextHeight),
+		m.panel("[1] Projects"+filterSuffix(m.projects.query), m.projects.query, m.projectItems(), m.projects.state, m.projects.err, projectsPane, m.leftWidth, m.projectHeight),
+		m.panel(m.scopesTitle(), m.scopes.query, m.scopeItems(), m.scopes.state, m.scopes.err, contextPane, m.leftWidth, m.contextHeight),
 		m.actionsPanel(),
 	)
 	right := m.rightPanel()
@@ -36,6 +37,10 @@ func (m Model) rightPanel() string {
 		title := "[4] Secrets"
 		if n := m.marks.count(); n > 0 {
 			title += fmt.Sprintf(" · %d marked", n)
+		}
+		title += filterSuffix(m.secrets.query)
+		if at, ok := m.scopes.current(); ok && m.scopes.state == stateLoaded {
+			title += " · " + printable(at.EnvName+" "+at.Path)
 		}
 		return m.panel(title, m.secrets.query, m.secretItems(), m.secrets.state, m.secrets.err, secretsPane, m.rightWidth, m.height-1)
 	}
@@ -79,9 +84,6 @@ func oneLine(err error) string {
 }
 
 func (m Model) panel(title, query string, items []string, state loadState, err error, target pane, width, height int) string {
-	if query != "" {
-		title += " /" + query
-	}
 	body, selectable := statusLines(state, err, items, query)
 	lines := append([]string(nil), body...) // never alias the caller's slice
 	if selectable {
@@ -158,11 +160,65 @@ func (m Model) projectItems() (items []string) {
 	return
 }
 
+// scopeItems draws the active environment's folders as a tree. A filtered
+// tree loses the parents that give it meaning, so while filtering each row
+// shows its whole path instead.
 func (m Model) scopeItems() (items []string) {
 	for _, item := range m.scopes.visible() {
-		items = append(items, fmt.Sprintf("%s  %s", printable(item.EnvName), pathLabel(printable(item.Path))))
+		if m.scopes.query != "" {
+			items = append(items, pathLabel(printable(item.Path)))
+		} else {
+			items = append(items, treeLabel(printable(item.Path)))
+		}
 	}
 	return
+}
+
+func treeLabel(path string) string {
+	if path == "/" {
+		return "/"
+	}
+	segments := strings.Split(strings.Trim(path, "/"), "/")
+	return strings.Repeat("  ", len(segments)-1) + segments[len(segments)-1] + "/"
+}
+
+// scopesTitle shows the environments as tabs. The active one carries a marker
+// as well as a style, so it still stands out where colours are off, and the
+// tabs collapse to the active one when they do not fit.
+func (m Model) scopesTitle() string {
+	envs := m.environments()
+	if m.scopes.state != stateLoaded || len(envs) == 0 {
+		return "[2] Environments" + filterSuffix(m.scopes.query)
+	}
+	border, active := mutedStyle, lipgloss.NewStyle().Bold(true)
+	if m.focused(contextPane) {
+		border, active = selectedStyle, selectedStyle
+	}
+	tab := func(e environment) string {
+		if e.slug == m.scopes.group {
+			return active.Render("›" + printable(e.name))
+		}
+		return mutedStyle.Render(printable(e.name))
+	}
+	filter := border.Render(filterSuffix(m.scopes.query))
+
+	tabs := make([]string, len(envs))
+	for i, e := range envs {
+		tabs[i] = tab(e)
+	}
+	full := border.Render("[2] ") + strings.Join(tabs, border.Render(" ─ ")) + filter
+	if lipgloss.Width(full) <= m.leftWidth-3 {
+		return full
+	}
+	at := max(0, slices.IndexFunc(envs, func(e environment) bool { return e.slug == m.scopes.group }))
+	return border.Render("[2] ") + tab(envs[at]) + border.Render(fmt.Sprintf(" (%d/%d)", at+1, len(envs))) + filter
+}
+
+func filterSuffix(query string) string {
+	if query == "" {
+		return ""
+	}
+	return " · /" + printable(query)
 }
 
 // pathLabel dims all but the last segment, so nesting reads at a glance without

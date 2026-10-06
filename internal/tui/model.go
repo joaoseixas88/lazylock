@@ -76,7 +76,8 @@ func New(ctx context.Context, catalog domain.Catalog) Model {
 		timers: timers{remask: 30 * time.Second, toast: 4 * time.Second},
 	}
 	m.projects.label = func(p domain.Project) string { return p.Name }
-	m.scopes.label = func(s domain.Scope) string { return s.EnvName + " " + s.Path }
+	m.scopes.label = func(s domain.Scope) string { return s.Path }
+	m.scopes.groupOf = func(s domain.Scope) string { return s.EnvSlug }
 	m.secrets.label = func(s domain.Secret) string { return s.Key }
 	m.projects.begin() // so the first frame says "Loading…" instead of "No items found."
 	m.resize(100, 30)
@@ -216,6 +217,10 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		cmd = m.askLogout()
 	case key.Matches(k, m.keys.Compare):
 		cmd = m.openCompare()
+	case key.Matches(k, m.keys.PrevEnv):
+		cmd = m.cycleEnv(-1)
+	case key.Matches(k, m.keys.NextEnv):
+		cmd = m.cycleEnv(1)
 	case key.Matches(k, m.keys.Filter) && m.activePane != actionsPane:
 		m.filtering = true
 		m.filterInput = staticInput("/", m.activeQuery())
