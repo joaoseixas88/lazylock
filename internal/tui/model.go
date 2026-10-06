@@ -47,6 +47,7 @@ type Model struct {
 	overlay    overlay
 	toast      toast
 	timers     timers
+	seq        int
 
 	state   appState
 	cfg     config.Config
@@ -132,6 +133,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case copiedMsg:
 		return m, m.copied(msg)
+	case targetCheckedMsg:
+		return m.targetChecked(msg)
+	case exportedMsg:
+		return m.exported(msg)
 	case toastExpiredMsg:
 		if msg.gen == m.toast.gen {
 			m.toast.text = ""
@@ -184,6 +189,8 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.toggleMark()
 	case m.activePane == secretsPane && key.Matches(k, m.keys.MarkAll):
 		m.toggleMarkAll()
+	case key.Matches(k, m.keys.Export):
+		cmd = m.openExport()
 	case key.Matches(k, m.keys.Back):
 		m.marks = m.marks.with(nil)
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/joaoseixas88/lazylock/internal/config"
 	"github.com/joaoseixas88/lazylock/internal/credstore"
 	"github.com/joaoseixas88/lazylock/internal/domain/fake"
+	"github.com/joaoseixas88/lazylock/internal/export"
 	"github.com/joaoseixas88/lazylock/internal/tui"
 )
 
@@ -32,7 +33,12 @@ func main() {
 		}
 		model = tui.NewApp(ctx, cfg.WithEnvOverrides(), credstore.New())
 	}
-	model = model.WithEffects(tui.Effects{Copy: clipboard.New(os.Stdout).Copy})
+	dir, _ := os.Getwd()
+	model = model.WithEffects(tui.Effects{
+		Copy:        clipboard.New(os.Stdout).Copy,
+		GitExposure: export.GitExposure,
+		Dir:         dir,
+	})
 
 	if _, err := tea.NewProgram(model, tea.WithContext(ctx), tea.WithAltScreen()).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "lazylock:", err)

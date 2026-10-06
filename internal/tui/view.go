@@ -39,8 +39,12 @@ func (m Model) rightPanel() string {
 		}
 		return m.panel(title, m.secretItems(), m.secrets.state, m.secrets.err, secretsPane, m.rightWidth, m.height-1)
 	}
-	lines := m.overlay.body(m, max(0, m.rightWidth-2), m.overlayHeight())
-	return frame(m.overlay.title(m), lines, m.rightWidth, m.height-1, true)
+	lines := m.overlay.body(m, max(0, m.rightWidth-3), m.overlayHeight())
+	padded := make([]string, len(lines))
+	for i, line := range lines {
+		padded[i] = " " + line
+	}
+	return frame(m.overlay.title(m), padded, m.rightWidth, m.height-1, true)
 }
 
 func (m Model) focused(p pane) bool { return m.overlay == nil && p == m.activePane }
