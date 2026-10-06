@@ -171,6 +171,9 @@ func (m Model) handleProjectsLoaded(msg projectsLoadedMsg) (tea.Model, tea.Cmd) 
 	if !m.projects.accept(msg.gen, msg.items, msg.err) {
 		return m, nil
 	}
+	if m.needsNewLogin(msg.err) {
+		return m.expireSession()
+	}
 	p, ok := m.projects.current()
 	if !ok {
 		m.scopes.reset()
@@ -187,6 +190,9 @@ func (m Model) handleScopesLoaded(msg scopesLoadedMsg) (tea.Model, tea.Cmd) {
 	if !m.scopes.accept(msg.gen, msg.items, msg.err) {
 		return m, nil
 	}
+	if m.needsNewLogin(msg.err) {
+		return m.expireSession()
+	}
 	s, ok := m.scopes.current()
 	if !ok {
 		m.secrets.reset()
@@ -201,6 +207,9 @@ func (m Model) handleSecretsLoaded(msg secretsLoadedMsg) (tea.Model, tea.Cmd) {
 	}
 	if !m.secrets.accept(msg.gen, msg.items, msg.err) {
 		return m, nil
+	}
+	if m.needsNewLogin(msg.err) {
+		return m.expireSession()
 	}
 	m.revealValue = false // never reveal a value the user did not just ask for
 	return m, nil

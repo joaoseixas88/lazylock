@@ -36,12 +36,15 @@ func (e *APIError) Error() string {
 	return strings.Join(parts, ": ")
 }
 
-// Unwrap maps the statuses the UI reacts to onto shared sentinels.
+// Unwrap maps the statuses the UI reacts to onto shared sentinels. Infisical
+// answers an expired, malformed or wrongly signed JWT with 403 TokenError
+// rather than 401, so that one is unauthorized too.
 func (e *APIError) Unwrap() error {
-	switch e.StatusCode {
-	case http.StatusUnauthorized:
+	switch {
+	case e.StatusCode == http.StatusUnauthorized,
+		e.StatusCode == http.StatusForbidden && e.Err == "TokenError":
 		return domain.ErrUnauthorized
-	case http.StatusForbidden:
+	case e.StatusCode == http.StatusForbidden:
 		return ErrForbidden
 	}
 	return nil

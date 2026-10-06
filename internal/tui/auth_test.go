@@ -4,9 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/joaoseixas88/lazylock/internal/config"
@@ -65,19 +69,60 @@ func TestNoStoredSessionLeadsToLogin(t *testing.T) {
 
 func TestExpiredSessionIsDiscardedAndSendsBackToLogin(t *testing.T) {
 	m := app(t, config.Config{SiteURL: "https://infisical.example.com"})
-	store := credstore.New()
-	m.store = store
 	session := credstore.Session{SiteURL: m.cfg.SiteURL, Email: "a@b.c", Token: "stale"}
-	if err := store.Save(session); err != nil {
-		t.Skipf("cannot exercise the store on this machine: %v", err)
+	if err := m.store.Save(session); err != nil {
+		t.Fatal(err)
 	}
 
 	next, _, _ := m.handleAuth(sessionReadyMsg{err: fmt.Errorf("list projects: %w", domain.ErrUnauthorized)})
 	if next.state != stateLogin {
 		t.Fatalf("state = %v, want stateLogin", next.state)
 	}
-	if _, err := store.Load(m.cfg.SiteURL); !errors.Is(err, credstore.ErrNotFound) {
+	if !errors.Is(next.authErr, errSessionExpired) {
+		t.Fatalf("authErr = %v, the login screen should say why it is back", next.authErr)
+	}
+	if _, err := m.store.Load(m.cfg.SiteURL); !errors.Is(err, credstore.ErrNotFound) {
 		t.Fatal("a token the server rejected must not be kept")
+	}
+}
+
+func TestSessionExpiringWhileBrowsingSendsBackToLogin(t *testing.T) {
+	m := app(t, config.Config{SiteURL: "https://infisical.example.com"})
+	session := credstore.Session{SiteURL: m.cfg.SiteURL, Email: "a@b.c", Token: "stale"}
+	if err := m.store.Save(session); err != nil {
+		t.Fatal(err)
+	}
+	m.state = stateBrowsing
+	expired := fmt.Errorf("list projects: %w", domain.ErrUnauthorized)
+	inFlight := m.projects.gen
+
+	next, _ := m.Update(projectsLoadedMsg{gen: inFlight, err: expired})
+	m = next.(Model)
+	if m.state != stateLogin {
+		t.Fatalf("state = %v, want stateLogin", m.state)
+	}
+	if _, err := m.store.Load(m.cfg.SiteURL); !errors.Is(err, credstore.ErrNotFound) {
+		t.Fatal("a token the server rejected must not be kept")
+	}
+	if _, cmd := m.Update(projectsLoadedMsg{gen: inFlight, err: expired}); cmd != nil {
+		t.Fatal("a reply still in flight for the old session must not restart the login")
+	}
+}
+
+func TestRejectedEnvironmentTokenLeavesTheStoredSessionAlone(t *testing.T) {
+	m := app(t, config.Config{SiteURL: "https://infisical.example.com"})
+	t.Setenv(config.EnvToken, "from.the.environment")
+	session := credstore.Session{SiteURL: m.cfg.SiteURL, Email: "a@b.c", Token: "stored"}
+	if err := m.store.Save(session); err != nil {
+		t.Fatal(err)
+	}
+
+	next, _, _ := m.handleAuth(sessionReadyMsg{err: fmt.Errorf("list projects: %w", domain.ErrUnauthorized)})
+	if next.state != stateBrowsing {
+		t.Fatalf("state = %v, want the failure on the panes", next.state)
+	}
+	if _, err := m.store.Load(m.cfg.SiteURL); err != nil {
+		t.Fatalf("the stored session must survive a rejected LAZYLOCK_TOKEN: %v", err)
 	}
 }
 
@@ -99,9 +144,24 @@ func TestNonAuthFailureKeepsTheSession(t *testing.T) {
 	}
 }
 
+func TestRetryAfterANonAuthFailureReachesTheServer(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer srv.Close()
+
+	m := app(t, config.Config{SiteURL: srv.URL})
+	m, _, _ = m.handleAuth(sessionReadyMsg{err: errors.New("refused")})
+	run(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
+	if hits.Load() != 1 {
+		t.Fatalf("retry reached the server %d times, want 1", hits.Load())
+	}
+}
+
 func TestSuccessfulLoginStoresTheSessionAndShowsTheAccount(t *testing.T) {
 	m := app(t, config.Config{SiteURL: "https://infisical.example.com"})
-	m.store = credstore.New()
 	m.client = infisical.NewClient(m.cfg.APIBase())
 
 	next, _, handled := m.handleAuth(loginDoneMsg{creds: infisical.Credentials{
@@ -119,7 +179,7 @@ func TestSuccessfulLoginStoresTheSessionAndShowsTheAccount(t *testing.T) {
 
 	session, err := next.store.Load(next.cfg.SiteURL)
 	if err != nil {
-		t.Skipf("cannot exercise the store on this machine: %v", err)
+		t.Fatal(err)
 	}
 	if session.Token != "fresh.token.value" {
 		t.Fatalf("stored token = %q", session.Token)

@@ -198,6 +198,32 @@ func TestUnauthorizedMapsToTheDomainSentinel(t *testing.T) {
 	}
 }
 
+func TestForbiddenIsUnauthorizedOnlyForATokenError(t *testing.T) {
+	cases := []struct {
+		name, body       string
+		wantUnauthorized bool
+	}{
+		{"expired token", `{"reqId":"req-123","statusCode":403,"message":"Your token has expired. Please re-authenticate.","error":"TokenError"}`, true},
+		{"permission denied", `{"reqId":"req-123","statusCode":403,"message":"You are not allowed to read on secrets","error":"PermissionDenied"}`, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				w.Write([]byte(tc.body))
+			}))
+			defer srv.Close()
+
+			catalog := NewCatalog(NewClient(srv.URL+"/api", WithTransport(srv.Client().Transport)))
+			_, err := catalog.Projects(context.Background())
+			if got := errors.Is(err, domain.ErrUnauthorized); got != tc.wantUnauthorized {
+				t.Fatalf("errors.Is(%v, ErrUnauthorized) = %v, want %v", err, got, tc.wantUnauthorized)
+			}
+		})
+	}
+}
+
 // A zod validation failure returns message as an ARRAY of issues. Decoding it
 // as a string makes every 422 surface as an unmarshal complaint instead.
 func TestValidationErrorWithArrayMessage(t *testing.T) {

@@ -45,6 +45,8 @@ type loginDoneMsg struct {
 
 type sessionReadyMsg struct{ err error }
 
+var errSessionExpired = errors.New("your session expired; log in again")
+
 // restoreSession reads the stored session and proves it still works. Reading
 // the keyring can block on a desktop unlock prompt, which is why it is a
 // command rather than something main does before the program starts.
@@ -148,19 +150,18 @@ func (m Model) handleAuth(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return m, m.verifySession(), true
 
 	case sessionReadyMsg:
-		if msg.err != nil {
-			if errors.Is(msg.err, domainUnauthorized) {
-				_ = m.store.Delete(m.cfg.SiteURL)
-				return m.toLogin(nil)
-			}
-			// A reachable instance that refused for another reason is a pane
-			// error, not a login problem.
-			m.state = stateBrowsing
-			m.projects.accept(m.projects.gen, nil, msg.err)
-			return m, nil, true
+		if m.needsNewLogin(msg.err) {
+			next, cmd := m.expireSession()
+			return next, cmd, true
 		}
 		m.state = stateBrowsing
 		m.load.catalog = infisical.NewCatalog(m.client)
+		if msg.err != nil {
+			// A reachable instance that refused for another reason is a pane
+			// error, not a login problem.
+			m.projects.accept(m.projects.gen, nil, msg.err)
+			return m, nil, true
+		}
 		return m, m.load.projects(m.projects.begin()), true
 
 	case siteCheckedMsg:
@@ -207,6 +208,21 @@ func (m Model) handleAuth(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return m, m.verifySession(), true
 	}
 	return m, nil, false
+}
+
+// needsNewLogin is false for a LAZYLOCK_TOKEN: it wins over any login on every
+// start, so the user has to replace it.
+func (m Model) needsNewLogin(err error) bool {
+	return m.store != nil && config.Token() == "" && errors.Is(err, domainUnauthorized)
+}
+
+func (m Model) expireSession() (Model, tea.Cmd) {
+	_ = m.store.Delete(m.cfg.SiteURL)
+	m.projects.reset()
+	m.scopes.reset()
+	m.secrets.reset()
+	next, cmd, _ := m.toLogin(errSessionExpired)
+	return next, cmd
 }
 
 func (m Model) toLogin(err error) (Model, tea.Cmd, bool) {
