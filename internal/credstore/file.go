@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/joaoseixas88/lazylock/internal/atomicfile"
 )
 
 // EnvPath overrides where the file fallback writes, so tests never touch $HOME.
@@ -45,8 +47,6 @@ func checkFile(path string) error {
 	return nil
 }
 
-// writeFile lands the payload atomically at 0600, so there is never a window in
-// which a readable partial file exists.
 func writeFile(raw []byte) error {
 	path, err := sessionPath()
 	if err != nil {
@@ -56,21 +56,5 @@ func writeFile(raw []byte) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create %s: %w", dir, err)
 	}
-	tmp, err := os.CreateTemp(dir, ".session-*.json")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	if err := tmp.Chmod(0o600); err != nil {
-		tmp.Close()
-		return err
-	}
-	if _, err := tmp.Write(raw); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), path)
+	return atomicfile.Write(path, raw, 0o600)
 }
