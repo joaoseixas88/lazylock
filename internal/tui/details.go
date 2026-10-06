@@ -106,6 +106,11 @@ func (d detailsOverlay) update(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		cmd = m.copySecret(s)
 	case found && key.Matches(k, m.keys.CopyLines):
 		cmd = m.copyLinesOf([]domain.Secret{s})
+	case found && key.Matches(k, m.keys.Edit):
+		cmd = m.openEdit(s)
+		if _, opened := m.overlay.(editorOverlay); opened {
+			return m, cmd
+		}
 	}
 	m.overlay = d
 	return m, cmd

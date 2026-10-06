@@ -158,6 +158,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.compared(msg)
 	case writtenMsg:
 		return m.written(msg)
+	case rawLoadedMsg:
+		return m.rawLoaded(msg)
+	case conflictMsg:
+		return m.conflicted(msg)
 	case toastExpiredMsg:
 		if msg.gen == m.toast.gen {
 			m.toast.text = ""
@@ -224,6 +228,10 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		cmd = m.openCompare()
 	case m.activePane == secretsPane && key.Matches(k, m.keys.Delete):
 		cmd = m.openDelete()
+	case m.activePane == secretsPane && key.Matches(k, m.keys.Edit):
+		if s, ok := m.secrets.current(); ok {
+			cmd = m.openEdit(s)
+		}
 	case key.Matches(k, m.keys.New):
 		cmd = m.openCreate()
 	case key.Matches(k, m.keys.PrevEnv):

@@ -155,3 +155,52 @@ func TestCreatingAKeyNamedBatchUsesTheBatchBody(t *testing.T) {
 		t.Fatalf("request = %s body = %v", got.path, got.body)
 	}
 }
+
+func TestRawAsksForUnexpandedLocalSecrets(t *testing.T) {
+	catalog, got := serve(t, http.StatusOK, "secrets-imports.json")
+	secrets, err := catalog.Raw(context.Background(), devApp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.query.Get("expandSecretReferences") != "false" || got.query.Get("includeImports") != "false" {
+		t.Fatalf("query = %v", got.query)
+	}
+	for _, s := range secrets {
+		if s.ImportedFrom != (domain.Scope{}) {
+			t.Fatalf("Raw must list only the folder's own secrets, got %+v", s)
+		}
+	}
+}
+
+func TestUpdateSendsOnlyTheChangedFields(t *testing.T) {
+	catalog, got := writeServer(t, http.StatusOK, `{"secret":{"id":"1"}}`)
+	empty := ""
+	if _, err := catalog.Update(context.Background(), devApp, "API_KEY", domain.Change{Comment: &empty}); err != nil {
+		t.Fatal(err)
+	}
+	if got.method != http.MethodPatch || got.path != "/api/v4/secrets/API_KEY" {
+		t.Fatalf("request = %s %s", got.method, got.path)
+	}
+	if comment, ok := got.body["secretComment"]; !ok || comment != "" {
+		t.Fatalf("an emptied comment must be sent as \"\", body = %v", got.body)
+	}
+	for _, absent := range []string{"secretValue", "newSecretName"} {
+		if _, ok := got.body[absent]; ok {
+			t.Fatalf("%s sent although unchanged: %v", absent, got.body)
+		}
+	}
+	if got.body["type"] != "shared" || got.body["secretPath"] != "/app" {
+		t.Fatalf("body = %v", got.body)
+	}
+}
+
+func TestUpdateRenamesWithNewSecretName(t *testing.T) {
+	catalog, got := writeServer(t, http.StatusOK, `{"secret":{"id":"1"}}`)
+	newKey, value := "API_TOKEN", "v2"
+	if _, err := catalog.Update(context.Background(), devApp, "API_KEY", domain.Change{NewKey: &newKey, Value: &value}); err != nil {
+		t.Fatal(err)
+	}
+	if got.body["newSecretName"] != "API_TOKEN" || got.body["secretValue"] != "v2" || got.path != "/api/v4/secrets/API_KEY" {
+		t.Fatalf("request = %s body = %v", got.path, got.body)
+	}
+}

@@ -51,6 +51,7 @@ go run ./cmd/lazylock -demo
 | `x` | anywhere | export the marked secrets, or the whole path |
 | `c` | anywhere | compare the path with the same path in another environment |
 | `n` | anywhere | new secret in the selected path |
+| `e` | Secrets, details | edit the selected secret's value, comment or key |
 | `d` | Secrets | delete the selected secret, or the marked ones |
 | `o` | anywhere | open the path in the Infisical web UI |
 | `r` | panes, comparison | reload |
@@ -94,12 +95,19 @@ Under an Infisical approval policy a write opens a change request instead, and
 the footer says nothing has changed yet. If the connection drops mid-write,
 LazyLock says it cannot tell whether the write went through and reloads,
 rather than trying again. Imported secrets are changed where they live, so
-deleting one is refused with its origin.
+editing or deleting one is refused with its origin.
 
 The editor has fields for the key, the value and the comment: `tab` moves
 between them, `enter` adds a line to the value, `ctrl+s` goes to the review, and
 `esc` asks before throwing changes away. A new key may use letters, digits, `_`
 and `-`; creating one that is only imported says it will hide the import.
+
+Editing starts from the value as stored, so a `${...}` reference stays a
+reference, and only the fields you change are sent. A value the editor could not
+hand back unchanged (tabs, carriage returns), or one you cannot read, stays
+locked and is never sent unless you replace it with `ctrl+r`. Just before
+saving, LazyLock checks the secret's version; if someone else changed it after
+you opened it, the review comes back with what it holds now and asks again.
 
 ## Configuration
 
@@ -115,7 +123,7 @@ Environment variables override it and are never written back:
 
 ## Roadmap
 
-Editing secrets and copying them between environments are not implemented yet;
-`e` and `C` are kept for them. Neither is a second
+Copying secrets between environments is not implemented yet; `C` is kept for
+it. Neither is a second
 provider, though the `domain.Catalog` port exists so one can
 be added without touching the TUI.

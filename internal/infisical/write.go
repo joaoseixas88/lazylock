@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/joaoseixas88/lazylock/internal/domain"
@@ -88,6 +89,62 @@ func (c *Catalog) Create(ctx context.Context, at domain.Scope, s domain.Draft) (
 			Secrets []wireDraft `json:"secrets"`
 		}{scopeOf(at), []wireDraft{{SecretKey: s.Key, SecretValue: s.Value, SecretComment: s.Comment}}}
 		err = c.client.do(ctx, http.MethodPost, "/v4/secrets/batch", nil, body, &reply)
+	}
+	if err != nil {
+		return domain.Outcome{}, err
+	}
+	return reply.outcome()
+}
+
+func (c *Catalog) Raw(ctx context.Context, at domain.Scope) ([]domain.Secret, error) {
+	query := url.Values{
+		"projectId":                {at.ProjectID},
+		"environment":              {at.EnvSlug},
+		"secretPath":               {at.Path},
+		"viewSecretValue":          {strconv.FormatBool(true)},
+		"expandSecretReferences":   {strconv.FormatBool(false)},
+		"recursive":                {strconv.FormatBool(false)},
+		"includeImports":           {strconv.FormatBool(false)},
+		"includePersonalOverrides": {strconv.FormatBool(false)},
+	}
+	var list wireSecretList
+	if err := c.client.get(ctx, "/v4/secrets", query, &list); err != nil {
+		return nil, err
+	}
+	return mapSecrets(at, wireSecretList{Secrets: list.Secrets}), nil
+}
+
+type wireChange struct {
+	SecretValue   *string `json:"secretValue,omitempty"`
+	SecretComment *string `json:"secretComment,omitempty"`
+	NewSecretName *string `json:"newSecretName,omitempty"`
+}
+
+func changeOf(ch domain.Change) wireChange {
+	return wireChange{SecretValue: ch.Value, SecretComment: ch.Comment, NewSecretName: ch.NewKey}
+}
+
+func (c *Catalog) Update(ctx context.Context, at domain.Scope, key string, ch domain.Change) (domain.Outcome, error) {
+	var reply wireWriteReply
+	var err error
+	if single([]string{key}) {
+		body := struct {
+			wireScope
+			wireChange
+			Type string `json:"type"`
+		}{scopeOf(at), changeOf(ch), "shared"}
+		err = c.client.do(ctx, http.MethodPatch, secretPath(key), nil, body, &reply)
+	} else {
+		type item struct {
+			SecretKey string `json:"secretKey"`
+			wireChange
+		}
+		body := struct {
+			wireScope
+			Mode    string `json:"mode"`
+			Secrets []item `json:"secrets"`
+		}{scopeOf(at), "failOnNotFound", []item{{key, changeOf(ch)}}}
+		err = c.client.do(ctx, http.MethodPatch, "/v4/secrets/batch", nil, body, &reply)
 	}
 	if err != nil {
 		return domain.Outcome{}, err

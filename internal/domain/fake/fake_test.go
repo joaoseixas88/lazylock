@@ -167,3 +167,40 @@ func TestCreateRefusesAnExistingKeyAndHidesAnImport(t *testing.T) {
 		t.Fatalf("DATABASE_URL listed %d times; a key appears once", count)
 	}
 }
+
+func TestRawKeepsReferencesThatSecretsExpands(t *testing.T) {
+	ctx := context.Background()
+	catalog := DemoCatalog()
+	api := scope("payments", "dev", "Development", "/services/api")
+	raw, _ := catalog.Raw(ctx, api)
+	expanded, _ := catalog.Secrets(ctx, api)
+	if keysOf(raw)["API_AUTH_HEADER"].Value != "Bearer ${API_TOKEN}" || keysOf(expanded)["API_AUTH_HEADER"].Value != "Bearer tok_demo_789" {
+		t.Fatalf("raw = %+v expanded = %+v", keysOf(raw)["API_AUTH_HEADER"], keysOf(expanded)["API_AUTH_HEADER"])
+	}
+}
+
+func TestUpdateBumpsTheVersionAndRefusesASameNameRename(t *testing.T) {
+	ctx := context.Background()
+	catalog := DemoCatalog()
+	root := scope("payments", "dev", "Development", "/")
+	same := "STRIPE_SECRET_KEY"
+	if _, err := catalog.Update(ctx, root, same, domain.Change{NewKey: &same}); !errors.Is(err, domain.ErrRejected) {
+		t.Fatalf("err = %v, want the server's rejection of a rename to the same name", err)
+	}
+	value := "  sk_rotated  "
+	if _, err := catalog.Update(ctx, root, same, domain.Change{Value: &value}); err != nil {
+		t.Fatal(err)
+	}
+	if s := keysOf(mustRaw(t, catalog, root))[same]; s.Value != "sk_rotated" || s.Version != 4 {
+		t.Fatalf("stored = %+v", s)
+	}
+}
+
+func mustRaw(t *testing.T, catalog *Catalog, at domain.Scope) []domain.Secret {
+	t.Helper()
+	secrets, err := catalog.Raw(context.Background(), at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return secrets
+}

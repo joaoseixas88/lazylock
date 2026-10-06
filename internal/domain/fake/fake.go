@@ -6,6 +6,7 @@ package fake
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -83,6 +84,7 @@ func DemoCatalog() *Catalog {
 			},
 			devServicesAPI: {
 				{ID: "api-token", Key: "API_TOKEN", Value: "tok_demo_789", Version: 1},
+				{ID: "api-auth", Key: "API_AUTH_HEADER", Value: "Bearer ${API_TOKEN}", Comment: "Built from API_TOKEN", Version: 1},
 			},
 			stgRoot: {
 				{ID: "stg-stripe-key", Key: "STRIPE_SECRET_KEY", Value: "sk_test_demo_123", Comment: "Test-mode key from the Stripe dashboard"},
@@ -174,12 +176,80 @@ func (c *Catalog) visible(at domain.Scope) []domain.Secret {
 	for _, group := range imported {
 		secrets = append(secrets, group...)
 	}
+	values := map[string]string{}
+	for _, s := range secrets {
+		values[s.Key] = s.Value
+	}
 	for i := range secrets {
+		secrets[i].Value = reference.ReplaceAllStringFunc(secrets[i].Value, func(ref string) string {
+			if value, ok := values[ref[2:len(ref)-1]]; ok {
+				return value
+			}
+			return ref
+		})
 		if secrets[i].Hidden {
 			secrets[i].Value = ""
 		}
 	}
 	return secrets
+}
+
+// reference is the one form the demo expands: ${KEY} naming a secret the same
+// folder sees.
+var reference = regexp.MustCompile(`\$\{[A-Za-z0-9_-]+\}`)
+
+func (c *Catalog) Raw(ctx context.Context, at domain.Scope) ([]domain.Secret, error) {
+	if err := c.enter(ctx); err != nil {
+		return nil, err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	secrets := slices.Clone(c.stored[at])
+	for i := range secrets {
+		if secrets[i].Hidden {
+			secrets[i].Value = ""
+		}
+	}
+	return secrets, nil
+}
+
+// Update rejects a rename to the current name, as Infisical does.
+func (c *Catalog) Update(ctx context.Context, at domain.Scope, key string, ch domain.Change) (domain.Outcome, error) {
+	return c.write(ctx, func() error {
+		secrets := slices.Clone(c.stored[at])
+		i := slices.IndexFunc(secrets, func(s domain.Secret) bool { return s.Key == key })
+		if i < 0 {
+			return fmt.Errorf("%w: Secret with name %s not found", domain.ErrRejected, key)
+		}
+		if ch.NewKey != nil {
+			if slices.ContainsFunc(secrets, func(s domain.Secret) bool { return s.Key == *ch.NewKey }) {
+				return fmt.Errorf("%w: Secret with the new name already exists", domain.ErrRejected)
+			}
+			secrets[i].Key = *ch.NewKey
+		}
+		if ch.Value != nil {
+			secrets[i].Value, secrets[i].Hidden = c.Normalize(*ch.Value), false
+		}
+		if ch.Comment != nil {
+			secrets[i].Comment = *ch.Comment
+		}
+		secrets[i].Version++
+		c.stored[at] = secrets
+		return nil
+	})
+}
+
+// Edit changes a stored secret as another user would, for tests of what
+// happens when someone else wrote first.
+func (c *Catalog) Edit(at domain.Scope, key, value string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	secrets := slices.Clone(c.stored[at])
+	if i := slices.IndexFunc(secrets, func(s domain.Secret) bool { return s.Key == key }); i >= 0 {
+		secrets[i].Value = value
+		secrets[i].Version++
+	}
+	c.stored[at] = secrets
 }
 
 func (*Catalog) Normalize(value string) string {
