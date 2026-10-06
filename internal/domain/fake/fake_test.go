@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/joaoseixas88/lazylock/internal/domain"
 )
 
 func TestDemoCatalogWalksTheWholeHierarchy(t *testing.T) {
@@ -87,5 +89,56 @@ func TestCancelledContextIsHonoured(t *testing.T) {
 
 	if _, err := DemoCatalog().Projects(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Projects() error = %v, want context.Canceled", err)
+	}
+}
+
+func keysOf(secrets []domain.Secret) map[string]domain.Secret {
+	byKey := map[string]domain.Secret{}
+	for _, s := range secrets {
+		byKey[s.Key] = s
+	}
+	return byKey
+}
+
+func TestImportsAreRelationsBetweenFolders(t *testing.T) {
+	ctx := context.Background()
+	catalog := DemoCatalog()
+	root, services := scope("payments", "dev", "Development", "/"), scope("payments", "dev", "Development", "/services")
+
+	secrets, _ := catalog.Secrets(ctx, services)
+	if db := keysOf(secrets)["DATABASE_URL"]; db.ImportedFrom != root {
+		t.Fatalf("DATABASE_URL in /services = %+v, want it imported from /", db)
+	}
+	if _, err := catalog.Delete(ctx, root, []string{"DATABASE_URL"}); err != nil {
+		t.Fatal(err)
+	}
+	if secrets, _ = catalog.Secrets(ctx, services); keysOf(secrets)["DATABASE_URL"].Key != "" {
+		t.Fatal("deleting the source must remove the secret from every folder importing it")
+	}
+}
+
+func TestDeleteIsAllOrNothing(t *testing.T) {
+	ctx := context.Background()
+	catalog := DemoCatalog()
+	root := scope("payments", "dev", "Development", "/")
+	if _, err := catalog.Delete(ctx, root, []string{"STRIPE_SECRET_KEY", "MISSING"}); !errors.Is(err, domain.ErrRejected) {
+		t.Fatalf("err = %v, want a rejection", err)
+	}
+	if secrets, _ := catalog.Secrets(ctx, root); keysOf(secrets)["STRIPE_SECRET_KEY"].Key == "" {
+		t.Fatal("a rejected delete must change nothing")
+	}
+}
+
+func TestApprovalAppliesNothing(t *testing.T) {
+	ctx := context.Background()
+	catalog := DemoCatalog()
+	catalog.Approval = true
+	root := scope("payments", "dev", "Development", "/")
+	outcome, err := catalog.Delete(ctx, root, []string{"STRIPE_SECRET_KEY"})
+	if err != nil || !outcome.Pending {
+		t.Fatalf("Delete = %+v, %v", outcome, err)
+	}
+	if secrets, _ := catalog.Secrets(ctx, root); keysOf(secrets)["STRIPE_SECRET_KEY"].Key == "" {
+		t.Fatal("a change request must not apply the change")
 	}
 }

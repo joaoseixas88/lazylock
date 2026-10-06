@@ -5,26 +5,42 @@ package fake
 
 import (
 	"context"
+	"fmt"
+	"slices"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/joaoseixas88/lazylock/internal/domain"
 )
 
-// Catalog is an in-memory domain.Catalog with knobs for the failure and
-// latency cases a live provider produces but a fixture otherwise never would.
+// Catalog is an in-memory domain.Catalog and domain.Writer with knobs for the
+// failure and latency cases a live provider produces but a fixture otherwise
+// never would. Imports are relations between folders, as in Infisical, so a
+// secret stored in one folder shows up in every folder that imports it.
 type Catalog struct {
 	projects []domain.Project
 	scopes   map[string][]domain.Scope
-	secrets  map[domain.Scope][]domain.Secret
+
+	mu      sync.Mutex
+	stored  map[domain.Scope][]domain.Secret
+	imports map[domain.Scope][]domain.Scope
 
 	ProjectsErr, ScopesErr, SecretsErr error
-	Delay                              time.Duration
+	// WriteErr fails every write. Approval turns every write into a change
+	// request that applies nothing, as an Infisical approval policy does.
+	WriteErr error
+	Approval bool
+	Delay    time.Duration
 
 	calls atomic.Int64
 }
 
-var _ domain.Catalog = (*Catalog)(nil)
+var (
+	_ domain.Catalog = (*Catalog)(nil)
+	_ domain.Writer  = (*Catalog)(nil)
+)
 
 func scope(project, slug, name, path string) domain.Scope {
 	return domain.Scope{ProjectID: project, EnvSlug: slug, EnvName: name, Path: path}
@@ -52,7 +68,10 @@ func DemoCatalog() *Catalog {
 			"website":  {siteProd},
 			"homelab":  nil,
 		},
-		secrets: map[domain.Scope][]domain.Secret{
+		imports: map[domain.Scope][]domain.Scope{
+			devServices: {devRoot},
+		},
+		stored: map[domain.Scope][]domain.Secret{
 			devRoot: {
 				{ID: "stripe-key", Key: "STRIPE_SECRET_KEY", Value: "sk_test_demo_123", Comment: "Test-mode key from the Stripe dashboard", Tags: []string{"payments", "stripe"}, Version: 3},
 				{ID: "db-url", Key: "DATABASE_URL", Value: "postgres://demo:demo@localhost/payments", Comment: "Primary database", Version: 1},
@@ -60,7 +79,6 @@ func DemoCatalog() *Catalog {
 			devServices: {
 				{ID: "redis-url", Key: "REDIS_URL", Value: "redis://localhost:6379/0", Version: 2},
 				{ID: "tls-cert", Key: "TLS_CERT", Value: "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIUDEMO\n-----END CERTIFICATE-----", Comment: "Self-signed, for local TLS only", Version: 1},
-				{ID: "db-url", Key: "DATABASE_URL", Value: "postgres://demo:demo@localhost/payments", Comment: "Primary database", Version: 1, ImportedFrom: devRoot},
 			},
 			devServicesAPI: {
 				{ID: "api-token", Key: "API_TOKEN", Value: "tok_demo_789", Version: 1},
@@ -126,5 +144,77 @@ func (c *Catalog) Secrets(ctx context.Context, at domain.Scope) ([]domain.Secret
 	if c.SecretsErr != nil {
 		return nil, c.SecretsErr
 	}
-	return append([]domain.Secret(nil), c.secrets[at]...), nil
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.visible(at), nil
+}
+
+// visible merges a folder's own secrets with the ones it imports, with the
+// precedence Infisical uses: the folder's own first, then a later import over
+// an earlier one.
+func (c *Catalog) visible(at domain.Scope) []domain.Secret {
+	secrets := slices.Clone(c.stored[at])
+	seen := map[string]bool{}
+	for _, s := range secrets {
+		seen[s.Key] = true
+	}
+	sources := c.imports[at]
+	imported := make([][]domain.Secret, len(sources))
+	for i := len(sources) - 1; i >= 0; i-- {
+		for _, s := range c.stored[sources[i]] {
+			if seen[s.Key] {
+				continue
+			}
+			seen[s.Key] = true
+			s.ImportedFrom = sources[i]
+			imported[i] = append(imported[i], s)
+		}
+	}
+	for _, group := range imported {
+		secrets = append(secrets, group...)
+	}
+	for i := range secrets {
+		if secrets[i].Hidden {
+			secrets[i].Value = ""
+		}
+	}
+	return secrets
+}
+
+func (*Catalog) Normalize(value string) string {
+	if strings.HasSuffix(value, "\n") {
+		return strings.TrimSpace(value) + "\n"
+	}
+	return strings.TrimSpace(value)
+}
+
+// write runs change under the lock unless a knob says the write fails or
+// becomes a change request.
+func (c *Catalog) write(ctx context.Context, change func() error) (domain.Outcome, error) {
+	if err := c.enter(ctx); err != nil {
+		return domain.Outcome{}, err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.WriteErr != nil {
+		return domain.Outcome{}, c.WriteErr
+	}
+	if c.Approval {
+		return domain.Outcome{Pending: true}, nil
+	}
+	return domain.Outcome{}, change()
+}
+
+func (c *Catalog) Delete(ctx context.Context, at domain.Scope, keys []string) (domain.Outcome, error) {
+	return c.write(ctx, func() error {
+		for _, key := range keys {
+			if !slices.ContainsFunc(c.stored[at], func(s domain.Secret) bool { return s.Key == key }) {
+				return fmt.Errorf("%w: secret %s not found in %s %s", domain.ErrRejected, key, at.EnvName, at.Path)
+			}
+		}
+		c.stored[at] = slices.DeleteFunc(slices.Clone(c.stored[at]), func(s domain.Secret) bool {
+			return slices.Contains(keys, s.Key)
+		})
+		return nil
+	})
 }

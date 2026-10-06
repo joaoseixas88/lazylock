@@ -50,6 +50,12 @@ func (e *APIError) Unwrap() error {
 	return nil
 }
 
+// Is reports a 4xx as rejected: the server answered and changed nothing. A 5xx
+// is left out, because the request may have applied before it failed.
+func (e *APIError) Is(target error) bool {
+	return target == domain.ErrRejected && e.StatusCode >= 400 && e.StatusCode < 500
+}
+
 var ErrForbidden = fmt.Errorf("infisical: permission denied")
 
 // wireError is Infisical's error envelope. message is usually a string, but on

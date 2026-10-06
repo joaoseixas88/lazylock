@@ -9,6 +9,7 @@ type keyMap struct {
 	Mark, MarkAll, Export, Retry, Back key.Binding
 	Filter, Enter, Open, Compare       key.Binding
 	Logout, PrevEnv, NextEnv           key.Binding
+	Delete                             key.Binding
 	Help, Close, Quit, ForceQuit       key.Binding
 }
 
@@ -36,6 +37,7 @@ func defaultKeys() keyMap {
 		Logout:    key.NewBinding(key.WithKeys("L"), key.WithHelp("L", "log out")),
 		PrevEnv:   key.NewBinding(key.WithKeys("["), key.WithHelp("[", "previous environment")),
 		NextEnv:   key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "next environment")),
+		Delete:    key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete")),
 		Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Close:     key.NewBinding(key.WithKeys("esc", "q"), key.WithHelp("esc", "close")),
 		Quit:      key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
@@ -52,6 +54,7 @@ func (k keyMap) groups() []bindingGroup {
 	return []bindingGroup{
 		{"Panes", []key.Binding{k.Project, k.Context, k.Actions, k.Secrets, k.Up, k.Down, k.PrevEnv, k.NextEnv, k.Enter, k.Filter, k.Retry}},
 		{"Secrets", []key.Binding{k.Reveal, k.RevealAll, k.Copy, k.CopyLines, k.Mark, k.MarkAll, k.Export, k.Compare, k.Open}},
+		{"Write", []key.Binding{k.Delete}},
 		{"General", []key.Binding{k.Back, k.Help, k.Logout, k.Close, k.Quit, k.ForceQuit}},
 	}
 }

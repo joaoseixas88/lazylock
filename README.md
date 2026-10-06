@@ -8,8 +8,9 @@ Infisical.
 LazyLock reads a real Infisical instance: projects, environments, folder paths,
 and the secrets at each path, with values hidden until you ask for them. Secrets
 imported from other paths are included and say where they come from, so what
-you copy or export matches what `infisical run` would inject. It is read-only —
-nothing it does can change a secret.
+you copy or export matches what `infisical run` would inject. It can also change
+secrets, always after a review you confirm; `-readonly` starts it unable to
+change anything.
 
 ```sh
 go run ./cmd/lazylock
@@ -49,6 +50,7 @@ go run ./cmd/lazylock -demo
 | `v` / `V` | Secrets | mark the selected secret / mark or unmark every visible one |
 | `x` | anywhere | export the marked secrets, or the whole path |
 | `c` | anywhere | compare the path with the same path in another environment |
+| `d` | Secrets | delete the selected secret, or the marked ones |
 | `o` | anywhere | open the path in the Infisical web UI |
 | `r` | panes, comparison | reload |
 | `L` | anywhere | log out |
@@ -83,6 +85,16 @@ LazyLock asks before replacing a file, and before writing secrets inside a git
 work tree where the file is not ignored. Secrets you cannot read are left out
 and named.
 
+## Writing
+
+Every write shows what will change and waits for `y`; `enter` never confirms.
+In an environment whose slug or name contains `prod`, you then type its name.
+Under an Infisical approval policy a write opens a change request instead, and
+the footer says nothing has changed yet. If the connection drops mid-write,
+LazyLock says it cannot tell whether the write went through and reloads,
+rather than trying again. Imported secrets are changed where they live, so
+deleting one is refused with its origin.
+
 ## Configuration
 
 `~/.config/lazylock/config.json` holds the instance URL and the last account.
@@ -97,7 +109,7 @@ Environment variables override it and are never written back:
 
 ## Roadmap
 
-Writing — creating, editing and deleting secrets, or copying them between
-environments — is not implemented, and `e`, `d` and `n` are kept free for it.
-Neither is a second provider, though the `domain.Catalog` port exists so one can
+Creating and editing secrets, and copying them between environments, are not
+implemented yet; `n`, `e` and `C` are kept for them. Neither is a second
+provider, though the `domain.Catalog` port exists so one can
 be added without touching the TUI.

@@ -37,6 +37,8 @@ type Model struct {
 	keys keyMap
 	fx   Effects
 
+	writes bool
+
 	projects list[domain.Project]
 	scopes   list[domain.Scope]
 	secrets  list[domain.Secret]
@@ -154,6 +156,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.opened(msg)
 	case comparedMsg:
 		return m.compared(msg)
+	case writtenMsg:
+		return m.written(msg)
 	case toastExpiredMsg:
 		if msg.gen == m.toast.gen {
 			m.toast.text = ""
@@ -218,6 +222,8 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		cmd = m.askLogout()
 	case key.Matches(k, m.keys.Compare):
 		cmd = m.openCompare()
+	case m.activePane == secretsPane && key.Matches(k, m.keys.Delete):
+		cmd = m.openDelete()
 	case key.Matches(k, m.keys.PrevEnv):
 		cmd = m.cycleEnv(-1)
 	case key.Matches(k, m.keys.NextEnv):

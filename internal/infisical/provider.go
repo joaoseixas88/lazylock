@@ -11,7 +11,7 @@ import (
 	"github.com/joaoseixas88/lazylock/internal/domain"
 )
 
-// Catalog reads one Infisical instance. Read-only: nothing here writes.
+// Catalog reads and writes one Infisical instance.
 type Catalog struct {
 	client *Client
 

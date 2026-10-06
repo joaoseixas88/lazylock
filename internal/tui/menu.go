@@ -25,7 +25,7 @@ func (a action) title() string {
 
 func (m Model) actions() []action {
 	k := m.keys
-	return []action{
+	actions := []action{
 		{binding: k.RevealAll},
 		{binding: k.Copy},
 		{binding: k.CopyLines},
@@ -34,13 +34,18 @@ func (m Model) actions() []action {
 		{binding: k.Filter, label: "filter secrets"},
 		{binding: k.Compare},
 		{binding: k.Open},
+	}
+	if _, ok := m.writer(); ok {
+		actions = append(actions, action{binding: k.Delete})
+	}
+	return append(actions, []action{
 		{binding: k.Logout},
 		{label: "switch instance", run: func(m Model) (Model, tea.Cmd) {
 			cmd := m.askSwitchInstance()
 			return m, cmd
 		}},
 		{binding: k.Help},
-	}
+	}...)
 }
 
 func (m Model) runAction(a action) (tea.Model, tea.Cmd) {

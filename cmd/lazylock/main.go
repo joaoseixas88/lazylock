@@ -18,6 +18,7 @@ import (
 
 func main() {
 	demo := flag.Bool("demo", false, "browse built-in sample data instead of a real instance")
+	readonly := flag.Bool("readonly", false, "never create, change or delete a secret")
 	flag.Parse()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -35,7 +36,7 @@ func main() {
 		model = tui.NewApp(ctx, cfg.WithEnvOverrides(), credstore.New())
 	}
 	dir, _ := os.Getwd()
-	model = model.WithEffects(tui.Effects{
+	model = model.WithWrites(!*readonly).WithEffects(tui.Effects{
 		Copy:        clipboard.New(os.Stdout).Copy,
 		GitExposure: export.GitExposure,
 		OpenURL:     infisical.OpenBrowser,
