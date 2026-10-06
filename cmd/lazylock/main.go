@@ -7,6 +7,7 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/joaoseixas88/lazylock/internal/clipboard"
 	"github.com/joaoseixas88/lazylock/internal/config"
 	"github.com/joaoseixas88/lazylock/internal/credstore"
 	"github.com/joaoseixas88/lazylock/internal/domain/fake"
@@ -31,6 +32,7 @@ func main() {
 		}
 		model = tui.NewApp(ctx, cfg.WithEnvOverrides(), credstore.New())
 	}
+	model = model.WithEffects(tui.Effects{Copy: clipboard.New(os.Stdout).Copy})
 
 	if _, err := tea.NewProgram(model, tea.WithContext(ctx), tea.WithAltScreen()).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "lazylock:", err)

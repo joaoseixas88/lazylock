@@ -27,7 +27,7 @@ func (m Model) View() string {
 	)
 	right := m.rightPanel()
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
-	footer := mutedStyle.Render(ansi.Truncate(m.footer(), m.width, ""))
+	footer := ansi.Truncate(m.footer(), m.width, "")
 	return body + "\n" + footer
 }
 
@@ -195,6 +195,25 @@ func (m Model) secretValue(s domain.Secret) string {
 // local process winning the login callback race: the Infisical flow has no
 // nonce, so an unexpected email is what a user would notice.
 func (m Model) footer() string {
+	left := mutedStyle.Render(m.hints())
+	if m.toast.text != "" {
+		style := selectedStyle
+		if m.toast.level == toastError {
+			style = errorStyle
+		}
+		left = style.Render(m.toast.text)
+	}
+	if m.account == "" {
+		return left
+	}
+	who := m.account
+	if m.store != nil {
+		who += " (" + m.store.Backend() + ")"
+	}
+	return left + mutedStyle.Render("  •  "+who)
+}
+
+func (m Model) hints() string {
 	bindings := m.keys.footer()
 	if m.overlay != nil {
 		bindings = m.overlay.hints(m.keys)
@@ -204,13 +223,5 @@ func (m Model) footer() string {
 		help := binding.Help()
 		hints = append(hints, help.Key+" "+help.Desc)
 	}
-	keys := strings.Join(hints, "  •  ")
-	if m.account == "" {
-		return keys
-	}
-	who := m.account
-	if m.store != nil {
-		who += " (" + m.store.Backend() + ")"
-	}
-	return keys + "  •  " + who
+	return strings.Join(hints, "  •  ")
 }

@@ -35,6 +35,7 @@ var (
 type Model struct {
 	load loader
 	keys keyMap
+	fx   Effects
 
 	projects list[domain.Project]
 	scopes   list[domain.Scope]
@@ -43,6 +44,7 @@ type Model struct {
 	activePane pane
 	reveal     reveal
 	overlay    overlay
+	toast      toast
 	timers     timers
 
 	state   appState
@@ -127,6 +129,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.loadScopes(p.ID)
 		}
 		return m, nil
+	case copiedMsg:
+		return m, m.copied(msg)
+	case toastExpiredMsg:
+		if msg.gen == m.toast.gen {
+			m.toast.text = ""
+		}
+		return m, nil
 	case remaskMsg:
 		if msg.gen == m.reveal.gen {
 			m.reveal.mask()
@@ -166,6 +175,8 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		cmd = m.toggleReveal()
 	case m.activePane == secretsPane && key.Matches(k, m.keys.RevealAll):
 		cmd = m.toggleRevealAll()
+	case m.activePane == secretsPane && key.Matches(k, m.keys.Copy):
+		cmd = m.copyValue()
 	}
 	if m.activePane != secretsPane {
 		m.reveal.mask()
