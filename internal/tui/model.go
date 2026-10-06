@@ -32,18 +32,6 @@ var (
 	errorStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 )
 
-type keyMap struct{ Up, Down, Project, Context, Actions, Secrets, Reveal, Retry, Quit key.Binding }
-
-func defaultKeys() keyMap {
-	return keyMap{
-		Up: key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")), Down: key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
-		Project: key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "projects")), Context: key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "context")),
-		Actions: key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "actions")), Secrets: key.NewBinding(key.WithKeys("4"), key.WithHelp("4", "secrets")),
-		Reveal: key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "reveal")), Retry: key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "retry")),
-		Quit: key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
-	}
-}
-
 type Model struct {
 	load loader
 	keys keyMap
@@ -54,6 +42,7 @@ type Model struct {
 
 	activePane  pane
 	revealValue bool
+	overlay     overlay
 
 	state   appState
 	cfg     config.Config
@@ -118,6 +107,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.state != stateBrowsing {
 			return m.handleAuthKey(msg)
 		}
+		if key.Matches(msg, m.keys.ForceQuit) {
+			return m, tea.Quit
+		}
+		if m.overlay != nil {
+			return m.overlay.update(m, msg)
+		}
 		return m.handleKey(msg)
 	case projectsLoadedMsg:
 		return m.handleProjectsLoaded(msg)
@@ -158,6 +153,8 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		cmd = m.move(1)
 	case key.Matches(k, m.keys.Retry):
 		cmd = m.retry()
+	case key.Matches(k, m.keys.Help):
+		m.overlay = helpOverlay{}
 	case m.activePane == secretsPane && key.Matches(k, m.keys.Reveal):
 		m.revealValue = !m.revealValue
 	}
@@ -268,6 +265,8 @@ func (m *Model) move(delta int) tea.Cmd {
 	}
 	return nil
 }
+
+func (m Model) overlayHeight() int { return max(0, m.height-3) }
 
 func (m *Model) resize(width, height int) {
 	m.width, m.height = max(0, width), max(0, height)

@@ -25,11 +25,21 @@ func (m Model) View() string {
 		m.panel("[2] Paths / Environments", m.scopeItems(), m.scopes.state, m.scopes.err, contextPane, m.leftWidth, m.contextHeight),
 		m.actionsPanel(),
 	)
-	right := m.panel("[4] Secrets", m.secretItems(), m.secrets.state, m.secrets.err, secretsPane, m.rightWidth, m.height-1)
+	right := m.rightPanel()
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
 	footer := mutedStyle.Render(ansi.Truncate(m.footer(), m.width, ""))
 	return body + "\n" + footer
 }
+
+func (m Model) rightPanel() string {
+	if m.overlay == nil {
+		return m.panel("[4] Secrets", m.secretItems(), m.secrets.state, m.secrets.err, secretsPane, m.rightWidth, m.height-1)
+	}
+	lines := m.overlay.body(m, max(0, m.rightWidth-2), m.overlayHeight())
+	return frame(m.overlay.title(m), lines, m.rightWidth, m.height-1, true)
+}
+
+func (m Model) focused(p pane) bool { return m.overlay == nil && p == m.activePane }
 
 // statusLines turns a pane's load state into what it should show, and reports
 // whether those lines are real rows the cursor may point at.
@@ -79,17 +89,18 @@ func (m Model) panel(title string, items []string, state loadState, err error, t
 			lines[i] = "  " + item
 		}
 	}
-	return frame(title, lines, width, height, target == m.activePane)
+	return frame(title, lines, width, height, m.focused(target))
 }
 
 func (m Model) actionsPanel() string {
 	return frame("[3] Actions", []string{
 		mutedStyle.Render("  space  reveal value"),
 		mutedStyle.Render("  r      retry pane"),
+		mutedStyle.Render("  ?      help"),
 		"",
 		mutedStyle.Render("  Export, copy, and edit"),
 		mutedStyle.Render("  arrive in the next milestone."),
-	}, m.leftWidth, m.actionsHeight, m.activePane == actionsPane)
+	}, m.leftWidth, m.actionsHeight, m.focused(actionsPane))
 }
 
 func frame(title string, lines []string, width, height int, focused bool) string {
@@ -181,7 +192,16 @@ func (m Model) secretValue(i int, s domain.Secret) string {
 // local process winning the login callback race: the Infisical flow has no
 // nonce, so an unexpected email is what a user would notice.
 func (m Model) footer() string {
-	keys := "↑/k up  •  ↓/j down  •  space reveal  •  r retry  •  q quit"
+	bindings := m.keys.footer()
+	if m.overlay != nil {
+		bindings = m.overlay.hints(m.keys)
+	}
+	hints := make([]string, 0, len(bindings))
+	for _, binding := range bindings {
+		help := binding.Help()
+		hints = append(hints, help.Key+" "+help.Desc)
+	}
+	keys := strings.Join(hints, "  •  ")
 	if m.account == "" {
 		return keys
 	}

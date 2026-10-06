@@ -2,9 +2,12 @@ package tui
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/joaoseixas88/lazylock/internal/domain"
 )
 
@@ -59,4 +62,45 @@ func start(t *testing.T, m Model) Model {
 func booted(t *testing.T, cat domain.Catalog) Model {
 	t.Helper()
 	return start(t, New(context.Background(), cat))
+}
+
+func press(k string) tea.KeyMsg {
+	switch k {
+	case "esc":
+		return tea.KeyMsg{Type: tea.KeyEsc}
+	case "enter":
+		return tea.KeyMsg{Type: tea.KeyEnter}
+	case "ctrl+c":
+		return tea.KeyMsg{Type: tea.KeyCtrlC}
+	case "up":
+		return tea.KeyMsg{Type: tea.KeyUp}
+	case "down":
+		return tea.KeyMsg{Type: tea.KeyDown}
+	case "backspace":
+		return tea.KeyMsg{Type: tea.KeyBackspace}
+	}
+	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
+}
+
+func quits(cmd tea.Cmd) bool {
+	if cmd == nil {
+		return false
+	}
+	_, ok := cmd().(tea.QuitMsg)
+	return ok
+}
+
+var terminalSizes = [][2]int{{200, 50}, {80, 24}, {60, 10}, {40, 7}, {80, 4}, {120, 36}, {10, 2}, {1, 1}}
+
+func assertFits(t *testing.T, view string, width, height int) {
+	t.Helper()
+	view = ansi.Strip(view)
+	if lipgloss.Height(view) > height {
+		t.Fatalf("height overflow: %d > %d", lipgloss.Height(view), height)
+	}
+	for _, line := range strings.Split(view, "\n") {
+		if lipgloss.Width(line) > width {
+			t.Fatalf("width overflow: %q", line)
+		}
+	}
 }
