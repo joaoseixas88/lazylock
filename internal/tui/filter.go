@@ -31,7 +31,7 @@ func (m Model) activeQuery() string {
 }
 
 func (m *Model) applyFilter(query string) tea.Cmd {
-	return m.reselect(func() {
+	return m.reselect(m.activePane, func() {
 		switch m.activePane {
 		case projectsPane:
 			m.projects.setQuery(query)

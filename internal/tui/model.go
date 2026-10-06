@@ -163,7 +163,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case selectScopeMsg:
-		if s, ok := m.scopes.current(); ok && s == msg.at {
+		if s, ok := m.scopes.current(); ok && s == msg.at && m.scopes.state == stateLoaded {
 			return m, m.loadSecrets(s)
 		}
 		return m, nil
@@ -319,7 +319,7 @@ func (m *Model) retry() tea.Cmd {
 }
 
 func (m *Model) move(delta int) tea.Cmd {
-	return m.reselect(func() {
+	return m.reselect(m.activePane, func() {
 		switch m.activePane {
 		case projectsPane:
 			m.projects.move(delta)
@@ -333,11 +333,13 @@ func (m *Model) move(delta int) tea.Cmd {
 	})
 }
 
-// reselect applies change to the focused pane and, when that changes its
-// selection, schedules the pane below or blanks it if nothing is selected.
-func (m *Model) reselect(change func()) tea.Cmd {
+// reselect applies change to pane p and, when that changes its selection,
+// blanks the panes below at once and schedules their reload. Blanking now
+// rather than at the reload keeps every action off the previous scope's data
+// while the debounce runs.
+func (m *Model) reselect(p pane, change func()) tea.Cmd {
 	m.reveal.one = ""
-	switch m.activePane {
+	switch p {
 	case projectsPane:
 		before, had := m.projects.current()
 		change()
@@ -347,6 +349,9 @@ func (m *Model) reselect(change func()) tea.Cmd {
 			m.scopes.reset()
 			m.resetSecrets()
 		case ok && (!had || after.ID != before.ID):
+			m.scopes.reset()
+			m.scopes.begin()
+			m.resetSecrets()
 			return m.load.settleProject(after.ID)
 		}
 	case contextPane:
@@ -357,6 +362,8 @@ func (m *Model) reselect(change func()) tea.Cmd {
 		case !ok && had:
 			m.resetSecrets()
 		case ok && (!had || after != before):
+			m.resetSecrets()
+			m.secrets.begin()
 			return m.load.settleScope(after)
 		}
 	default:
