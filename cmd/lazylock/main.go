@@ -12,6 +12,7 @@ import (
 	"github.com/joaoseixas88/lazylock/internal/credstore"
 	"github.com/joaoseixas88/lazylock/internal/domain/fake"
 	"github.com/joaoseixas88/lazylock/internal/export"
+	"github.com/joaoseixas88/lazylock/internal/infisical"
 	"github.com/joaoseixas88/lazylock/internal/tui"
 )
 
@@ -37,6 +38,7 @@ func main() {
 	model = model.WithEffects(tui.Effects{
 		Copy:        clipboard.New(os.Stdout).Copy,
 		GitExposure: export.GitExposure,
+		OpenURL:     infisical.OpenBrowser,
 		Dir:         dir,
 	})
 

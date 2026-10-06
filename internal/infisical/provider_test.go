@@ -409,3 +409,30 @@ func TestSecretsCarryCommentTagsAndVersion(t *testing.T) {
 		t.Fatalf("DATABASE_URL = %+v; a tag without a name falls back to its slug", db)
 	}
 }
+
+func TestWebURLPointsAtTheScopeSecretsPage(t *testing.T) {
+	catalog, _ := serve(t, http.StatusOK, "projects.json")
+	if _, err := catalog.Projects(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	at := domain.Scope{ProjectID: "3f1c7a10-0000-4000-8000-000000000001", EnvSlug: "dev", Path: "/services/api"}
+	link, err := catalog.WebURL(at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, err := url.Parse(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantPath := "/organizations/aa000000-0000-4000-8000-000000000000/projects/secret-management/3f1c7a10-0000-4000-8000-000000000001/secrets/dev"
+	if u.Path != wantPath || u.Query().Get("secretPath") != "/services/api" || strings.Contains(u.Path, "/api/") {
+		t.Fatalf("WebURL = %s", link)
+	}
+}
+
+func TestWebURLNeedsTheProjectList(t *testing.T) {
+	catalog, _ := serve(t, http.StatusOK, "projects.json")
+	if _, err := catalog.WebURL(domain.Scope{ProjectID: "3f1c7a10-0000-4000-8000-000000000001", EnvSlug: "dev", Path: "/"}); err == nil {
+		t.Fatal("without the project list there is no organization to point at")
+	}
+}

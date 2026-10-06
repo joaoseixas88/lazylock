@@ -13,6 +13,7 @@ import (
 type Effects struct {
 	Copy        func(ctx context.Context, text string) (clipboard.Via, error)
 	GitExposure func(ctx context.Context, path string) (export.Exposure, error)
+	OpenURL     func(url string) error
 	Dir         string
 }
 

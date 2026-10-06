@@ -123,15 +123,6 @@ func waitForCallback(login *infisical.BrowserLogin) tea.Cmd {
 	}
 }
 
-func openBrowser(url string) tea.Cmd {
-	return func() tea.Msg {
-		// A browser that will not open is not a failure: the URL is on screen,
-		// which is the whole flow on a remote session anyway.
-		_ = infisical.OpenBrowser(url)
-		return nil
-	}
-}
-
 func submitPasted(pasted string) tea.Cmd {
 	return func() tea.Msg {
 		creds, err := infisical.DecodePastedToken(pasted)
@@ -185,7 +176,7 @@ func (m Model) handleAuth(msg tea.Msg) (Model, tea.Cmd, bool) {
 			return m, nil, true
 		}
 		m.login = msg.login
-		return m, tea.Batch(waitForCallback(msg.login), openBrowser(msg.login.URL)), true
+		return m, tea.Batch(waitForCallback(msg.login), m.openBrowser(msg.login.URL)), true
 
 	case loginDoneMsg:
 		if msg.err != nil {

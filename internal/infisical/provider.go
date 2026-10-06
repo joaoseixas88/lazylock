@@ -2,14 +2,22 @@ package infisical
 
 import (
 	"context"
+	"errors"
 	"net/url"
 	"strconv"
+	"strings"
+	"sync"
 
 	"github.com/joaoseixas88/lazylock/internal/domain"
 )
 
 // Catalog reads one Infisical instance. Read-only: nothing here writes.
-type Catalog struct{ client *Client }
+type Catalog struct {
+	client *Client
+
+	mu   sync.Mutex
+	orgs map[string]string // project ID to organization ID, from the last Projects call
+}
 
 var _ domain.Catalog = (*Catalog)(nil)
 
@@ -26,6 +34,13 @@ func (c *Catalog) Projects(ctx context.Context) ([]domain.Project, error) {
 	if err := c.client.get(ctx, "/v1/projects", query, &list); err != nil {
 		return nil, err
 	}
+	orgs := make(map[string]string, len(list.Projects))
+	for _, p := range list.Projects {
+		orgs[p.ID] = p.OrgID
+	}
+	c.mu.Lock()
+	c.orgs = orgs
+	c.mu.Unlock()
 	return mapProjects(list), nil
 }
 
@@ -64,4 +79,20 @@ func (c *Catalog) Secrets(ctx context.Context, at domain.Scope) ([]domain.Secret
 func (c *Catalog) VerifySession(ctx context.Context) error {
 	_, err := c.Projects(ctx)
 	return err
+}
+
+// WebURL is the page of the Infisical web app that shows the secrets at a
+// scope. It needs the project's organization, which only Projects reports.
+func (c *Catalog) WebURL(at domain.Scope) (string, error) {
+	c.mu.Lock()
+	org := c.orgs[at.ProjectID]
+	c.mu.Unlock()
+	if org == "" {
+		return "", errors.New("the project's organization is not known yet")
+	}
+	site := strings.TrimSuffix(c.client.base, "/api")
+	path := "/organizations/" + url.PathEscape(org) +
+		"/projects/secret-management/" + url.PathEscape(at.ProjectID) +
+		"/secrets/" + url.PathEscape(at.EnvSlug)
+	return site + path + "?" + url.Values{"secretPath": {at.Path}}.Encode(), nil
 }

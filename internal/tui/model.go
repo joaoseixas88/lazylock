@@ -147,6 +147,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.targetChecked(msg)
 	case exportedMsg:
 		return m.exported(msg)
+	case openedMsg:
+		return m, m.opened(msg)
 	case toastExpiredMsg:
 		if msg.gen == m.toast.gen {
 			m.toast.text = ""
@@ -205,6 +207,8 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.toggleMarkAll()
 	case key.Matches(k, m.keys.Export):
 		cmd = m.openExport()
+	case key.Matches(k, m.keys.Open):
+		cmd = m.openScope()
 	case key.Matches(k, m.keys.Filter) && m.activePane != actionsPane:
 		m.filtering = true
 		m.filterInput = staticInput("/", m.activeQuery())
