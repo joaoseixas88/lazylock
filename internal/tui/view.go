@@ -33,7 +33,11 @@ func (m Model) View() string {
 
 func (m Model) rightPanel() string {
 	if m.overlay == nil {
-		return m.panel("[4] Secrets", m.secretItems(), m.secrets.state, m.secrets.err, secretsPane, m.rightWidth, m.height-1)
+		title := "[4] Secrets"
+		if n := m.marks.count(); n > 0 {
+			title += fmt.Sprintf(" · %d marked", n)
+		}
+		return m.panel(title, m.secretItems(), m.secrets.state, m.secrets.err, secretsPane, m.rightWidth, m.height-1)
 	}
 	lines := m.overlay.body(m, max(0, m.rightWidth-2), m.overlayHeight())
 	return frame(m.overlay.title(m), lines, m.rightWidth, m.height-1, true)
@@ -168,7 +172,11 @@ func pathLabel(path string) string {
 
 func (m Model) secretItems() (items []string) {
 	for _, secret := range m.secrets.items {
-		items = append(items, fmt.Sprintf("%s=%s", secret.Key, m.secretValue(secret)))
+		row := fmt.Sprintf("%s=%s", secret.Key, m.secretValue(secret))
+		if m.marks.has(secret.ID) {
+			row = selectedStyle.Render("● ") + row
+		}
+		items = append(items, row)
 	}
 	return
 }

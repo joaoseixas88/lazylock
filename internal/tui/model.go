@@ -43,6 +43,7 @@ type Model struct {
 
 	activePane pane
 	reveal     reveal
+	marks      marks
 	overlay    overlay
 	toast      toast
 	timers     timers
@@ -177,6 +178,14 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		cmd = m.toggleRevealAll()
 	case m.activePane == secretsPane && key.Matches(k, m.keys.Copy):
 		cmd = m.copyValue()
+	case m.activePane == secretsPane && key.Matches(k, m.keys.CopyLines):
+		cmd = m.copyLines()
+	case m.activePane == secretsPane && key.Matches(k, m.keys.Mark):
+		m.toggleMark()
+	case m.activePane == secretsPane && key.Matches(k, m.keys.MarkAll):
+		m.toggleMarkAll()
+	case key.Matches(k, m.keys.Back):
+		m.marks = m.marks.with(nil)
 	}
 	if m.activePane != secretsPane {
 		m.reveal.mask()
@@ -194,7 +203,7 @@ func (m Model) handleProjectsLoaded(msg projectsLoadedMsg) (tea.Model, tea.Cmd) 
 	p, ok := m.projects.current()
 	if !ok {
 		m.scopes.reset()
-		m.secrets.reset()
+		m.resetSecrets()
 		return m, nil
 	}
 	return m, m.loadScopes(p.ID)
@@ -212,7 +221,7 @@ func (m Model) handleScopesLoaded(msg scopesLoadedMsg) (tea.Model, tea.Cmd) {
 	}
 	s, ok := m.scopes.current()
 	if !ok {
-		m.secrets.reset()
+		m.resetSecrets()
 		return m, nil
 	}
 	return m, m.loadSecrets(s)
@@ -229,6 +238,9 @@ func (m Model) handleSecretsLoaded(msg secretsLoadedMsg) (tea.Model, tea.Cmd) {
 		return m.expireSession()
 	}
 	m.reveal.mask() // never reveal a value the user did not just ask for
+	if msg.err == nil {
+		m.marks = m.marks.prune(msg.items)
+	}
 	return m, nil
 }
 
@@ -242,7 +254,15 @@ func (m *Model) loadScopes(projectID string) tea.Cmd {
 }
 
 func (m *Model) loadSecrets(at domain.Scope) tea.Cmd {
+	if at != m.marks.at {
+		m.marks = marks{at: at}
+	}
 	return m.load.secrets(m.secrets.begin(), at)
+}
+
+func (m *Model) resetSecrets() {
+	m.secrets.reset()
+	m.marks = marks{}
 }
 
 func (m *Model) retry() tea.Cmd {

@@ -226,7 +226,7 @@ func (m Model) expireSession() (Model, tea.Cmd) {
 func (m *Model) endSession() {
 	m.projects.reset()
 	m.scopes.reset()
-	m.secrets.reset()
+	m.resetSecrets()
 	m.reveal.mask()
 	m.overlay = nil
 }

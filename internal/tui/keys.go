@@ -5,7 +5,8 @@ import "github.com/charmbracelet/bubbles/key"
 type keyMap struct {
 	Up, Down                           key.Binding
 	Project, Context, Actions, Secrets key.Binding
-	Reveal, RevealAll, Copy, Retry     key.Binding
+	Reveal, RevealAll, Copy, CopyLines key.Binding
+	Mark, MarkAll, Retry, Back         key.Binding
 	Help, Close, Quit, ForceQuit       key.Binding
 }
 
@@ -20,7 +21,11 @@ func defaultKeys() keyMap {
 		Reveal:    key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "reveal")),
 		RevealAll: key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "reveal all")),
 		Copy:      key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "copy value")),
+		CopyLines: key.NewBinding(key.WithKeys("Y"), key.WithHelp("Y", "copy KEY=value")),
+		Mark:      key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "mark")),
+		MarkAll:   key.NewBinding(key.WithKeys("V"), key.WithHelp("V", "mark all / none")),
 		Retry:     key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "retry")),
+		Back:      key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "clear marks")),
 		Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Close:     key.NewBinding(key.WithKeys("esc", "q"), key.WithHelp("esc", "close")),
 		Quit:      key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
@@ -36,8 +41,8 @@ type bindingGroup struct {
 func (k keyMap) groups() []bindingGroup {
 	return []bindingGroup{
 		{"Panes", []key.Binding{k.Project, k.Context, k.Actions, k.Secrets, k.Up, k.Down, k.Retry}},
-		{"Secrets", []key.Binding{k.Reveal, k.RevealAll, k.Copy}},
-		{"General", []key.Binding{k.Help, k.Close, k.Quit, k.ForceQuit}},
+		{"Secrets", []key.Binding{k.Reveal, k.RevealAll, k.Copy, k.CopyLines, k.Mark, k.MarkAll}},
+		{"General", []key.Binding{k.Back, k.Help, k.Close, k.Quit, k.ForceQuit}},
 	}
 }
 
