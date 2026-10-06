@@ -32,6 +32,7 @@ func (m Model) actions() []action {
 		{binding: k.MarkAll},
 		{binding: k.Export},
 		{binding: k.Filter, label: "filter secrets"},
+		{binding: k.Compare},
 		{binding: k.Open},
 		{binding: k.Logout},
 		{label: "switch instance", run: func(m Model) (Model, tea.Cmd) {

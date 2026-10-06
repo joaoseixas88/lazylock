@@ -36,6 +36,8 @@ func DemoCatalog() *Catalog {
 		devRoot     = scope("payments", "dev", "Development", "/")
 		devServices = scope("payments", "dev", "Development", "/services")
 		prodRoot    = scope("payments", "prod", "Production", "/")
+		stgRoot     = scope("payments", "stg", "Staging", "/")
+		stgServices = scope("payments", "stg", "Staging", "/services")
 		siteProd    = scope("website", "prod", "Production", "/")
 	)
 	return &Catalog{
@@ -45,7 +47,7 @@ func DemoCatalog() *Catalog {
 			{ID: "homelab", Name: "Homelab"},
 		},
 		scopes: map[string][]domain.Scope{
-			"payments": {devRoot, devServices, prodRoot},
+			"payments": {devRoot, devServices, prodRoot, stgRoot, stgServices},
 			"website":  {siteProd},
 			"homelab":  nil,
 		},
@@ -58,6 +60,14 @@ func DemoCatalog() *Catalog {
 				{ID: "redis-url", Key: "REDIS_URL", Value: "redis://localhost:6379/0", Version: 2},
 				{ID: "tls-cert", Key: "TLS_CERT", Value: "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIUDEMO\n-----END CERTIFICATE-----", Comment: "Self-signed, for local TLS only", Version: 1},
 				{ID: "db-url", Key: "DATABASE_URL", Value: "postgres://demo:demo@localhost/payments", Comment: "Primary database", Version: 1, ImportedFrom: devRoot},
+			},
+			stgRoot: {
+				{ID: "stg-stripe-key", Key: "STRIPE_SECRET_KEY", Value: "sk_test_demo_123", Comment: "Test-mode key from the Stripe dashboard"},
+				{ID: "stg-db-url", Key: "DATABASE_URL", Value: "postgres://demo:demo@staging/payments"},
+				{ID: "stg-flags", Key: "FEATURE_FLAGS", Value: "checkout-v2"},
+			},
+			stgServices: {
+				{ID: "stg-redis-url", Key: "REDIS_URL", Value: "redis://staging:6379/0"},
 			},
 			prodRoot: {
 				{ID: "stripe-live-key", Key: "STRIPE_SECRET_KEY", Value: "sk_live_demo_456"},
