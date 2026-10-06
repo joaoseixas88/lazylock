@@ -142,3 +142,28 @@ func TestApprovalAppliesNothing(t *testing.T) {
 		t.Fatal("a change request must not apply the change")
 	}
 }
+
+func TestCreateRefusesAnExistingKeyAndHidesAnImport(t *testing.T) {
+	ctx := context.Background()
+	catalog := DemoCatalog()
+	root, services := scope("payments", "dev", "Development", "/"), scope("payments", "dev", "Development", "/services")
+	if _, err := catalog.Create(ctx, root, domain.Draft{Key: "STRIPE_SECRET_KEY", Value: "x"}); !errors.Is(err, domain.ErrRejected) {
+		t.Fatalf("err = %v, want a rejection", err)
+	}
+	if _, err := catalog.Create(ctx, services, domain.Draft{Key: "DATABASE_URL", Value: "  local  "}); err != nil {
+		t.Fatal(err)
+	}
+	secrets, _ := catalog.Secrets(ctx, services)
+	var count int
+	for _, s := range secrets {
+		if s.Key == "DATABASE_URL" {
+			count++
+			if s.Value != "local" || s.ImportedFrom != (domain.Scope{}) {
+				t.Fatalf("DATABASE_URL = %+v, want the local, trimmed value", s)
+			}
+		}
+	}
+	if count != 1 {
+		t.Fatalf("DATABASE_URL listed %d times; a key appears once", count)
+	}
+}

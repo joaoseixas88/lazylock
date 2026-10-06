@@ -65,6 +65,36 @@ func secretPath(key string) string { return "/v4/secrets/" + url.PathEscape(key)
 // first, so that one always goes through the batch body.
 func single(keys []string) bool { return len(keys) == 1 && keys[0] != "batch" }
 
+type wireDraft struct {
+	SecretKey     string `json:"secretKey"`
+	SecretValue   string `json:"secretValue"`
+	SecretComment string `json:"secretComment"`
+}
+
+func (c *Catalog) Create(ctx context.Context, at domain.Scope, s domain.Draft) (domain.Outcome, error) {
+	var reply wireWriteReply
+	var err error
+	if single([]string{s.Key}) {
+		body := struct {
+			wireScope
+			SecretValue   string `json:"secretValue"`
+			SecretComment string `json:"secretComment"`
+			Type          string `json:"type"`
+		}{scopeOf(at), s.Value, s.Comment, "shared"}
+		err = c.client.do(ctx, http.MethodPost, secretPath(s.Key), nil, body, &reply)
+	} else {
+		body := struct {
+			wireScope
+			Secrets []wireDraft `json:"secrets"`
+		}{scopeOf(at), []wireDraft{{SecretKey: s.Key, SecretValue: s.Value, SecretComment: s.Comment}}}
+		err = c.client.do(ctx, http.MethodPost, "/v4/secrets/batch", nil, body, &reply)
+	}
+	if err != nil {
+		return domain.Outcome{}, err
+	}
+	return reply.outcome()
+}
+
 func (c *Catalog) Delete(ctx context.Context, at domain.Scope, keys []string) (domain.Outcome, error) {
 	if len(keys) == 0 {
 		return domain.Outcome{}, nil

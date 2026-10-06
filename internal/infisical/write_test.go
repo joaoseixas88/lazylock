@@ -127,3 +127,31 @@ func TestNormalizeTrimsLikeTheServer(t *testing.T) {
 		}
 	}
 }
+
+func TestCreatingASecretPostsItsValueAndComment(t *testing.T) {
+	catalog, got := writeServer(t, http.StatusOK, `{"secret":{"id":"9","secretKey":"NEW"}}`)
+	draft := domain.Draft{Key: "NEW", Value: "line1\nline2", Comment: "why"}
+	if _, err := catalog.Create(context.Background(), devApp, draft); err != nil {
+		t.Fatal(err)
+	}
+	if got.method != http.MethodPost || got.path != "/api/v4/secrets/NEW" {
+		t.Fatalf("request = %s %s", got.method, got.path)
+	}
+	want := map[string]any{"projectId": "proj", "environment": "dev", "secretPath": "/app", "secretValue": "line1\nline2", "secretComment": "why", "type": "shared"}
+	for k, v := range want {
+		if got.body[k] != v {
+			t.Fatalf("body[%s] = %v, want %v", k, got.body[k], v)
+		}
+	}
+}
+
+func TestCreatingAKeyNamedBatchUsesTheBatchBody(t *testing.T) {
+	catalog, got := writeServer(t, http.StatusOK, `{"secrets":[{"id":"9"}]}`)
+	if _, err := catalog.Create(context.Background(), devApp, domain.Draft{Key: "batch", Value: "v"}); err != nil {
+		t.Fatal(err)
+	}
+	items, _ := got.body["secrets"].([]any)
+	if got.path != "/api/v4/secrets/batch" || len(items) != 1 || items[0].(map[string]any)["secretKey"] != "batch" {
+		t.Fatalf("request = %s body = %v", got.path, got.body)
+	}
+}

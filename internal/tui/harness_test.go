@@ -88,6 +88,12 @@ func press(k string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyDown}
 	case "backspace":
 		return tea.KeyMsg{Type: tea.KeyBackspace}
+	case "tab":
+		return tea.KeyMsg{Type: tea.KeyTab}
+	case "shift+tab":
+		return tea.KeyMsg{Type: tea.KeyShiftTab}
+	case "ctrl+s":
+		return tea.KeyMsg{Type: tea.KeyCtrlS}
 	}
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
 }

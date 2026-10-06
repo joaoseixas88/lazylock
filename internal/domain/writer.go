@@ -16,10 +16,16 @@ type Writer interface {
 	// Normalize returns value as the provider will store it.
 	Normalize(value string) string
 
+	// Create stores a new secret at a scope.
+	Create(ctx context.Context, at Scope, s Draft) (Outcome, error)
+
 	// Delete removes the secrets stored at a scope under keys: all of them or
 	// none.
 	Delete(ctx context.Context, at Scope, keys []string) (Outcome, error)
 }
+
+// Draft is a secret about to be written.
+type Draft struct{ Key, Value, Comment string }
 
 // Outcome is what a write did. Pending means it became a change request that
 // still needs an approval, so nothing has changed yet.

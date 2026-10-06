@@ -26,6 +26,7 @@ type Catalog struct {
 	mu      sync.Mutex
 	stored  map[domain.Scope][]domain.Secret
 	imports map[domain.Scope][]domain.Scope
+	created int
 
 	ProjectsErr, ScopesErr, SecretsErr error
 	// WriteErr fails every write. Approval turns every write into a change
@@ -203,6 +204,23 @@ func (c *Catalog) write(ctx context.Context, change func() error) (domain.Outcom
 		return domain.Outcome{Pending: true}, nil
 	}
 	return domain.Outcome{}, change()
+}
+
+func (c *Catalog) Create(ctx context.Context, at domain.Scope, s domain.Draft) (domain.Outcome, error) {
+	return c.write(ctx, func() error {
+		if slices.ContainsFunc(c.stored[at], func(stored domain.Secret) bool { return stored.Key == s.Key }) {
+			return fmt.Errorf("%w: Secret already exists", domain.ErrRejected)
+		}
+		c.created++
+		c.stored[at] = append(slices.Clone(c.stored[at]), domain.Secret{
+			ID:      fmt.Sprintf("created-%d", c.created),
+			Key:     s.Key,
+			Value:   c.Normalize(s.Value),
+			Comment: strings.TrimSpace(s.Comment),
+			Version: 1,
+		})
+		return nil
+	})
 }
 
 func (c *Catalog) Delete(ctx context.Context, at domain.Scope, keys []string) (domain.Outcome, error) {

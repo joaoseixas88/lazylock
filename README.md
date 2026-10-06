@@ -50,6 +50,7 @@ go run ./cmd/lazylock -demo
 | `v` / `V` | Secrets | mark the selected secret / mark or unmark every visible one |
 | `x` | anywhere | export the marked secrets, or the whole path |
 | `c` | anywhere | compare the path with the same path in another environment |
+| `n` | anywhere | new secret in the selected path |
 | `d` | Secrets | delete the selected secret, or the marked ones |
 | `o` | anywhere | open the path in the Infisical web UI |
 | `r` | panes, comparison | reload |
@@ -95,6 +96,11 @@ LazyLock says it cannot tell whether the write went through and reloads,
 rather than trying again. Imported secrets are changed where they live, so
 deleting one is refused with its origin.
 
+The editor has fields for the key, the value and the comment: `tab` moves
+between them, `enter` adds a line to the value, `ctrl+s` goes to the review, and
+`esc` asks before throwing changes away. A new key may use letters, digits, `_`
+and `-`; creating one that is only imported says it will hide the import.
+
 ## Configuration
 
 `~/.config/lazylock/config.json` holds the instance URL and the last account.
@@ -109,7 +115,7 @@ Environment variables override it and are never written back:
 
 ## Roadmap
 
-Creating and editing secrets, and copying them between environments, are not
-implemented yet; `n`, `e` and `C` are kept for them. Neither is a second
+Editing secrets and copying them between environments are not implemented yet;
+`e` and `C` are kept for them. Neither is a second
 provider, though the `domain.Catalog` port exists so one can
 be added without touching the TUI.

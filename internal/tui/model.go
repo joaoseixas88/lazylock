@@ -224,6 +224,8 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		cmd = m.openCompare()
 	case m.activePane == secretsPane && key.Matches(k, m.keys.Delete):
 		cmd = m.openDelete()
+	case key.Matches(k, m.keys.New):
+		cmd = m.openCreate()
 	case key.Matches(k, m.keys.PrevEnv):
 		cmd = m.cycleEnv(-1)
 	case key.Matches(k, m.keys.NextEnv):
