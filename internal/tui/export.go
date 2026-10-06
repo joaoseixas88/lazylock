@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -198,20 +197,10 @@ func (e exportOverlay) choose(m Model, k tea.KeyMsg) (Model, tea.Cmd) {
 		return m, m.exportToClipboard(e)
 	case k.Type == tea.KeyEnter:
 		e.step, e.err = enterPath, nil
-		e.input = pathInput(m.fx.display(m.fx.join(e.chosenFormat().FileName(e.at.EnvSlug))))
+		e.input = staticInput("› ", m.fx.display(m.fx.join(e.chosenFormat().FileName(e.at.EnvSlug))))
 	}
 	m.overlay = e
 	return m, nil
-}
-
-func pathInput(value string) textinput.Model {
-	input := textinput.New()
-	input.Prompt = "› "
-	input.CharLimit = 4096
-	input.Cursor.SetMode(cursor.CursorStatic)
-	input.Focus()
-	input.SetValue(value)
-	return input
 }
 
 func (e exportOverlay) submitPath(m Model) (Model, tea.Cmd) {

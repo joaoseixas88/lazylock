@@ -21,8 +21,8 @@ func (m Model) View() string {
 		return m.authView()
 	}
 	left := lipgloss.JoinVertical(lipgloss.Left,
-		m.panel("[1] Projects", m.projectItems(), m.projects.state, m.projects.err, projectsPane, m.leftWidth, m.projectHeight),
-		m.panel("[2] Paths / Environments", m.scopeItems(), m.scopes.state, m.scopes.err, contextPane, m.leftWidth, m.contextHeight),
+		m.panel("[1] Projects", m.projects.query, m.projectItems(), m.projects.state, m.projects.err, projectsPane, m.leftWidth, m.projectHeight),
+		m.panel("[2] Paths / Environments", m.scopes.query, m.scopeItems(), m.scopes.state, m.scopes.err, contextPane, m.leftWidth, m.contextHeight),
 		m.actionsPanel(),
 	)
 	right := m.rightPanel()
@@ -37,7 +37,7 @@ func (m Model) rightPanel() string {
 		if n := m.marks.count(); n > 0 {
 			title += fmt.Sprintf(" · %d marked", n)
 		}
-		return m.panel(title, m.secretItems(), m.secrets.state, m.secrets.err, secretsPane, m.rightWidth, m.height-1)
+		return m.panel(title, m.secrets.query, m.secretItems(), m.secrets.state, m.secrets.err, secretsPane, m.rightWidth, m.height-1)
 	}
 	lines := m.overlay.body(m, max(0, m.rightWidth-3), m.overlayHeight())
 	padded := make([]string, len(lines))
@@ -51,7 +51,7 @@ func (m Model) focused(p pane) bool { return m.overlay == nil && p == m.activePa
 
 // statusLines turns a pane's load state into what it should show, and reports
 // whether those lines are real rows the cursor may point at.
-func statusLines(state loadState, err error, items []string) ([]string, bool) {
+func statusLines(state loadState, err error, items []string, query string) ([]string, bool) {
 	switch {
 	case state == stateIdle:
 		return nil, false
@@ -63,6 +63,8 @@ func statusLines(state loadState, err error, items []string) ([]string, bool) {
 			lines = []string{errorStyle.Render("Session expired."), mutedStyle.Render("Log in again to continue.")}
 		}
 		return append(lines, mutedStyle.Render("r  retry")), false
+	case len(items) == 0 && query != "":
+		return []string{mutedStyle.Render("No matches for “" + query + "”")}, false
 	case len(items) == 0:
 		return []string{mutedStyle.Render("No items found.")}, false
 	}
@@ -76,8 +78,11 @@ func oneLine(err error) string {
 	return strings.Join(strings.Fields(err.Error()), " ")
 }
 
-func (m Model) panel(title string, items []string, state loadState, err error, target pane, width, height int) string {
-	body, selectable := statusLines(state, err, items)
+func (m Model) panel(title, query string, items []string, state loadState, err error, target pane, width, height int) string {
+	if query != "" {
+		title += " /" + query
+	}
+	body, selectable := statusLines(state, err, items, query)
 	lines := append([]string(nil), body...) // never alias the caller's slice
 	if selectable {
 		for i, item := range lines {
@@ -152,14 +157,14 @@ func (m Model) cursorFor(target pane) int {
 }
 
 func (m Model) projectItems() (items []string) {
-	for _, project := range m.projects.items {
+	for _, project := range m.projects.visible() {
 		items = append(items, project.Name)
 	}
 	return
 }
 
 func (m Model) scopeItems() (items []string) {
-	for _, item := range m.scopes.items {
+	for _, item := range m.scopes.visible() {
 		items = append(items, fmt.Sprintf("%s  %s", item.EnvName, pathLabel(item.Path)))
 	}
 	return
@@ -175,7 +180,7 @@ func pathLabel(path string) string {
 }
 
 func (m Model) secretItems() (items []string) {
-	for _, secret := range m.secrets.items {
+	for _, secret := range m.secrets.visible() {
 		row := fmt.Sprintf("%s=%s", secret.Key, m.secretValue(secret))
 		if from := secret.ImportedFrom; from != (domain.Scope{}) {
 			row += mutedStyle.Render("  ⇠ " + m.envName(from.EnvSlug) + " " + from.Path)
@@ -211,7 +216,9 @@ func (m Model) secretValue(s domain.Secret) string {
 // nonce, so an unexpected email is what a user would notice.
 func (m Model) footer() string {
 	left := mutedStyle.Render(m.hints())
-	if m.toast.text != "" {
+	if m.filtering {
+		left = m.filterInput.View() + mutedStyle.Render("  enter keep  •  esc clear  •  ↑/↓ move")
+	} else if m.toast.text != "" {
 		style := selectedStyle
 		if m.toast.level == toastError {
 			style = errorStyle

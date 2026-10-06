@@ -49,6 +49,9 @@ type Model struct {
 	timers     timers
 	seq        int
 
+	filtering   bool
+	filterInput textinput.Model
+
 	state   appState
 	cfg     config.Config
 	store   *credstore.Store
@@ -70,6 +73,9 @@ func New(ctx context.Context, catalog domain.Catalog) Model {
 		state:  stateBrowsing,
 		timers: timers{remask: 30 * time.Second, toast: 4 * time.Second},
 	}
+	m.projects.label = func(p domain.Project) string { return p.Name }
+	m.scopes.label = func(s domain.Scope) string { return s.EnvName + " " + s.Path }
+	m.secrets.label = func(s domain.Secret) string { return s.Key }
 	m.projects.begin() // so the first frame says "Loading…" instead of "No items found."
 	m.resize(100, 30)
 	return m
@@ -115,6 +121,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if key.Matches(msg, m.keys.ForceQuit) {
 			return m, tea.Quit
+		}
+		if m.filtering {
+			return m.handleFilterKey(msg)
 		}
 		if m.overlay != nil {
 			return m.overlay.update(m, msg)
@@ -191,6 +200,11 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.toggleMarkAll()
 	case key.Matches(k, m.keys.Export):
 		cmd = m.openExport()
+	case key.Matches(k, m.keys.Filter) && m.activePane != actionsPane:
+		m.filtering = true
+		m.filterInput = staticInput("/", m.activeQuery())
+	case key.Matches(k, m.keys.Back) && m.activeQuery() != "":
+		cmd = m.applyFilter("")
 	case key.Matches(k, m.keys.Back):
 		m.marks = m.marks.with(nil)
 	}
@@ -289,26 +303,46 @@ func (m *Model) retry() tea.Cmd {
 }
 
 func (m *Model) move(delta int) tea.Cmd {
+	return m.reselect(func() {
+		switch m.activePane {
+		case projectsPane:
+			m.projects.move(delta)
+		case contextPane:
+			m.scopes.move(delta)
+		case secretsPane:
+			m.secrets.move(delta)
+		}
+	})
+}
+
+// reselect applies change to the focused pane and, when that changes its
+// selection, schedules the pane below or blanks it if nothing is selected.
+func (m *Model) reselect(change func()) tea.Cmd {
 	m.reveal.one = ""
 	switch m.activePane {
 	case projectsPane:
-		before, _ := m.projects.current()
-		m.projects.move(delta)
+		before, had := m.projects.current()
+		change()
 		after, ok := m.projects.current()
-		if !ok || after.ID == before.ID {
-			return nil // clamped at an end: nothing changed, so nothing to load
+		switch {
+		case !ok && had:
+			m.scopes.reset()
+			m.resetSecrets()
+		case ok && (!had || after.ID != before.ID):
+			return m.load.settleProject(after.ID)
 		}
-		return m.load.settleProject(after.ID)
 	case contextPane:
-		before, _ := m.scopes.current()
-		m.scopes.move(delta)
+		before, had := m.scopes.current()
+		change()
 		after, ok := m.scopes.current()
-		if !ok || after == before {
-			return nil
+		switch {
+		case !ok && had:
+			m.resetSecrets()
+		case ok && (!had || after != before):
+			return m.load.settleScope(after)
 		}
-		return m.load.settleScope(after)
-	case secretsPane:
-		m.secrets.move(delta)
+	default:
+		change()
 	}
 	return nil
 }

@@ -59,12 +59,21 @@ func (m *Model) toggleMark() {
 }
 
 func (m *Model) toggleMarkAll() {
-	ids := map[string]bool{}
-	for _, s := range m.secrets.items {
-		ids[s.ID] = true
+	visible := m.secrets.visible()
+	ids := maps.Clone(m.marks.ids)
+	if ids == nil {
+		ids = map[string]bool{}
 	}
-	if len(ids) == m.marks.count() {
-		ids = nil
+	all := true
+	for _, s := range visible {
+		all = all && ids[s.ID]
+	}
+	for _, s := range visible {
+		if all {
+			delete(ids, s.ID)
+		} else {
+			ids[s.ID] = true
+		}
 	}
 	m.marks = m.marks.with(ids)
 }

@@ -229,6 +229,8 @@ func (m *Model) endSession() {
 	m.resetSecrets()
 	m.reveal.mask()
 	m.overlay = nil
+	m.filtering = false
+	m.projects.query, m.scopes.query, m.secrets.query = "", "", ""
 }
 
 func (m Model) toLogin(err error) (Model, tea.Cmd, bool) {
