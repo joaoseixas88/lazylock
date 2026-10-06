@@ -3,6 +3,7 @@ package infisical
 import (
 	"cmp"
 	"slices"
+	"strings"
 
 	"github.com/joaoseixas88/lazylock/internal/domain"
 )
@@ -123,7 +124,7 @@ func mapScopes(projectID string, tree map[string]wireEnvTree) []domain.Scope {
 		if !seen["/"] {
 			paths = append(paths, "/")
 		}
-		slices.Sort(paths)
+		slices.SortFunc(paths, comparePaths)
 
 		name := env.Name
 		if name == "" {
@@ -139,6 +140,12 @@ func mapScopes(projectID string, tree map[string]wireEnvTree) []domain.Scope {
 		}
 	}
 	return scopes
+}
+
+// comparePaths sorts "/" below every other byte, so "/app/api" lands right
+// after "/app" instead of after "/app-old".
+func comparePaths(a, b string) int {
+	return strings.Compare(strings.ReplaceAll(a, "/", "\x00"), strings.ReplaceAll(b, "/", "\x00"))
 }
 
 func mapSecret(s wireSecret) domain.Secret {

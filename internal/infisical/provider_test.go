@@ -436,3 +436,17 @@ func TestWebURLNeedsTheProjectList(t *testing.T) {
 		t.Fatal("without the project list there is no organization to point at")
 	}
 }
+
+func TestNestedFoldersStayRightUnderTheirParent(t *testing.T) {
+	folder := func(path string) wireFolder { return wireFolder{Path: path} }
+	tree := map[string]wireEnvTree{"dev": {Slug: "dev", Name: "Development", Folders: []wireFolder{
+		folder("/app-old"), folder("/app/api"), folder("/app"), folder("/"), folder("/app/api/v2"),
+	}}}
+	var paths []string
+	for _, s := range mapScopes("p", tree) {
+		paths = append(paths, s.Path)
+	}
+	if want := []string{"/", "/app", "/app/api", "/app/api/v2", "/app-old"}; !slices.Equal(paths, want) {
+		t.Fatalf("paths = %v, want %v", paths, want)
+	}
+}

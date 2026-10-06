@@ -25,7 +25,8 @@ type Catalog interface {
 	//
 	// The order must be stable across calls, because the TUI's cursor depends
 	// on it. The root path "/" must be present for every environment, even one
-	// with no folders at all.
+	// with no folders at all, and within an environment each folder must come
+	// right after its parent, so the rows read as a tree.
 	Scopes(ctx context.Context, projectID string) ([]Scope, error)
 
 	// Secrets lists what one Scope sees: the secrets stored there, then the
