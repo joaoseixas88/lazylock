@@ -199,6 +199,16 @@ func TestFooterNamesTheAccount(t *testing.T) {
 	}
 }
 
+func TestFooterKeepsTheAccountVisibleOnANarrowTerminal(t *testing.T) {
+	m := booted(t, fake.DemoCatalog())
+	m.account = "someone.with.a.rather.long.name@example.com"
+	m.store = &credstore.Store{}
+	m = run(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
+	if got := lastLine(m.View()); !strings.HasSuffix(got, "someone.with.a.rather.long.name@example.com (file)") {
+		t.Fatalf("footer = %q, the account must survive a narrow terminal", got)
+	}
+}
+
 func TestAuthScreensStayInsideTheTerminal(t *testing.T) {
 	for _, state := range []appState{stateSetup, stateRestoring, stateLogin} {
 		for _, size := range [][2]int{{80, 24}, {40, 10}, {120, 40}} {

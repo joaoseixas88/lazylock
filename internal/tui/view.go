@@ -208,7 +208,8 @@ func (m Model) secretValue(s domain.Secret) string {
 
 // footer names the account in play. Showing it is the one defence against a
 // local process winning the login callback race: the Infisical flow has no
-// nonce, so an unexpected email is what a user would notice.
+// nonce, so an unexpected email is what a user would notice. When the row is
+// too short, the hints give way so the account stays on screen.
 func (m Model) footer() string {
 	left := mutedStyle.Render(m.hints())
 	if m.filtering {
@@ -227,7 +228,11 @@ func (m Model) footer() string {
 	if m.store != nil {
 		who += " (" + m.store.Backend() + ")"
 	}
-	return left + mutedStyle.Render("  •  "+who)
+	who = mutedStyle.Render("  •  " + printable(who))
+	if room := m.width - lipgloss.Width(who); room >= 10 {
+		left = ansi.Truncate(left, room, "…")
+	}
+	return left + who
 }
 
 func (m Model) hints() string {
