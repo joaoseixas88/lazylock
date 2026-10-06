@@ -1,6 +1,7 @@
 package infisical
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -81,18 +82,34 @@ func (c *Client) Token() string {
 	return c.token
 }
 
-// get issues an authenticated GET and decodes a JSON body into out.
 func (c *Client) get(ctx context.Context, path string, query url.Values, out any) error {
+	return c.do(ctx, http.MethodGet, path, query, nil, out)
+}
+
+// do issues an authenticated request, sending body as JSON when it is not nil,
+// and decodes a JSON reply into out.
+func (c *Client) do(ctx context.Context, method, path string, query url.Values, body, out any) error {
 	endpoint := c.base + path
 	if len(query) > 0 {
 		endpoint += "?" + query.Encode()
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	var payload io.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("encode %s %s: %w", method, path, err)
+		}
+		payload = bytes.NewReader(data)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, payload)
 	if err != nil {
 		return fmt.Errorf("build request for %s: %w", path, err)
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", userAgent)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	if token := c.Token(); token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
@@ -103,9 +120,9 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, out any
 		// with the path so nothing reaches the UI that should not.
 		var urlErr *url.Error
 		if errors.As(err, &urlErr) {
-			return fmt.Errorf("GET %s: %w", path, urlErr.Err)
+			return fmt.Errorf("%s %s: %w", method, path, urlErr.Err)
 		}
-		return fmt.Errorf("GET %s: %w", path, err)
+		return fmt.Errorf("%s %s: %w", method, path, err)
 	}
 	defer func() {
 		io.Copy(io.Discard, io.LimitReader(resp.Body, maxErrorBody))
@@ -113,7 +130,7 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, out any
 	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return c.decodeError(resp, http.MethodGet, path)
+		return c.decodeError(resp, method, path)
 	}
 	if out == nil {
 		return nil
