@@ -56,6 +56,7 @@ func DemoCatalog() *Catalog {
 			},
 			devServices: {
 				{ID: "redis-url", Key: "REDIS_URL", Value: "redis://localhost:6379/0"},
+				{ID: "db-url", Key: "DATABASE_URL", Value: "postgres://demo:demo@localhost/payments", ImportedFrom: devRoot},
 			},
 			prodRoot: {
 				{ID: "stripe-live-key", Key: "STRIPE_SECRET_KEY", Value: "sk_live_demo_456"},

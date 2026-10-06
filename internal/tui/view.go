@@ -177,6 +177,9 @@ func pathLabel(path string) string {
 func (m Model) secretItems() (items []string) {
 	for _, secret := range m.secrets.items {
 		row := fmt.Sprintf("%s=%s", secret.Key, m.secretValue(secret))
+		if from := secret.ImportedFrom; from != (domain.Scope{}) {
+			row += mutedStyle.Render("  ⇠ " + m.envName(from.EnvSlug) + " " + from.Path)
+		}
 		if m.marks.has(secret.ID) {
 			row = selectedStyle.Render("● ") + row
 		}
@@ -236,4 +239,13 @@ func (m Model) hints() string {
 		hints = append(hints, help.Key+" "+help.Desc)
 	}
 	return strings.Join(hints, "  •  ")
+}
+
+func (m Model) envName(slug string) string {
+	for _, s := range m.scopes.items {
+		if s.EnvSlug == slug {
+			return s.EnvName
+		}
+	}
+	return slug
 }

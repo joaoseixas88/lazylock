@@ -28,7 +28,8 @@ type Catalog interface {
 	// with no folders at all.
 	Scopes(ctx context.Context, projectID string) ([]Scope, error)
 
-	// Secrets lists the secrets stored at exactly one Scope. Values arrive
+	// Secrets lists what one Scope sees: the secrets stored there, then the
+	// ones imported into it, each key once and each ID unique. Values arrive
 	// already decrypted; Secret.Hidden marks the ones the session may list but
 	// not read.
 	Secrets(ctx context.Context, at Scope) ([]Secret, error)

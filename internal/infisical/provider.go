@@ -42,22 +42,20 @@ func (c *Catalog) Secrets(ctx context.Context, at domain.Scope) ([]domain.Secret
 	// Every boolean here is a z.enum(["true","false"]) server-side: "1" or
 	// "TRUE" is a 422, not a default.
 	query := url.Values{
-		"projectId":              {at.ProjectID},
-		"environment":            {at.EnvSlug},
-		"secretPath":             {at.Path},
-		"viewSecretValue":        {strconv.FormatBool(true)},
-		"expandSecretReferences": {strconv.FormatBool(true)},
-		"recursive":              {strconv.FormatBool(false)},
-		// Imports arrive in a separate array and the domain has no way to say
-		// "this came from somewhere else", so showing them unmarked would
-		// mislead. Flip this on when there is a badge for them.
-		"includeImports": {strconv.FormatBool(false)},
+		"projectId":                {at.ProjectID},
+		"environment":              {at.EnvSlug},
+		"secretPath":               {at.Path},
+		"viewSecretValue":          {strconv.FormatBool(true)},
+		"expandSecretReferences":   {strconv.FormatBool(true)},
+		"recursive":                {strconv.FormatBool(false)},
+		"includeImports":           {strconv.FormatBool(true)},
+		"includePersonalOverrides": {strconv.FormatBool(false)},
 	}
 	var list wireSecretList
 	if err := c.client.get(ctx, "/v4/secrets", query, &list); err != nil {
 		return nil, err
 	}
-	return mapSecrets(list), nil
+	return mapSecrets(at, list), nil
 }
 
 // VerifySession proves the token is both authenticated and scoped to an

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -156,7 +157,7 @@ func TestSecretsSendExactBooleansAndHonourHidden(t *testing.T) {
 	for key, want := range map[string]string{
 		"projectId": "proj", "environment": "dev", "secretPath": "/",
 		"viewSecretValue": "true", "expandSecretReferences": "true",
-		"recursive": "false", "includeImports": "false",
+		"recursive": "false", "includeImports": "true", "includePersonalOverrides": "false",
 	} {
 		if got.query.Get(key) != want {
 			t.Fatalf("query %s = %q, want %q", key, got.query.Get(key), want)
@@ -335,10 +336,64 @@ func TestFixturesAreScrubbed(t *testing.T) {
 		if err := json.Unmarshal(data, &list); err != nil {
 			continue
 		}
-		for _, secret := range list.Secrets {
+		all := list.Secrets
+		for _, imp := range list.Imports {
+			all = append(all, imp.Secrets...)
+		}
+		for _, secret := range all {
 			if v := secret.SecretValue; v != "" && !strings.HasPrefix(v, "PLACEHOLDER") {
 				t.Fatalf("%s: %s looks like a real value; scrub fixtures before committing", path, secret.SecretKey)
 			}
 		}
+	}
+}
+
+func importedSecrets(t *testing.T) map[string]domain.Secret {
+	t.Helper()
+	catalog, _ := serve(t, http.StatusOK, "secrets-imports.json")
+	at := domain.Scope{ProjectID: "proj", EnvSlug: "dev", EnvName: "Development", Path: "/services"}
+	secrets, err := catalog.Secrets(context.Background(), at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var keys []string
+	byKey := map[string]domain.Secret{}
+	for _, s := range secrets {
+		keys = append(keys, s.Key)
+		byKey[s.Key] = s
+	}
+	if want := []string{"API_URL", "SHARED_TOKEN", "LOG_LEVEL", "REGION", "SIGNING_KEY"}; !slices.Equal(keys, want) {
+		t.Fatalf("keys = %v, want %v: own secrets first, then imports in order, each key once", keys, want)
+	}
+	return byKey
+}
+
+func TestImportedSecretsCarryTheFolderTheyComeFrom(t *testing.T) {
+	secrets := importedSecrets(t)
+	if from := secrets["LOG_LEVEL"].ImportedFrom; from != (domain.Scope{ProjectID: "proj", EnvSlug: "dev", Path: "/shared"}) {
+		t.Fatalf("LOG_LEVEL comes from %+v", from)
+	}
+	if from := secrets["API_URL"].ImportedFrom; from != (domain.Scope{}) {
+		t.Fatalf("a secret stored at the listed folder is not imported, got %+v", from)
+	}
+}
+
+func TestALocalSecretShadowsAnImport(t *testing.T) {
+	token := importedSecrets(t)["SHARED_TOKEN"]
+	if token.Value != "PLACEHOLDER_LOCAL_TOKEN" || token.ImportedFrom != (domain.Scope{}) {
+		t.Fatalf("SHARED_TOKEN = %+v, want the folder's own value", token)
+	}
+}
+
+func TestALaterImportShadowsAnEarlierOne(t *testing.T) {
+	region := importedSecrets(t)["REGION"]
+	if region.Value != "PLACEHOLDER_LATE_REGION" || region.ImportedFrom.EnvSlug != "staging" {
+		t.Fatalf("REGION = %+v, want the later import's value", region)
+	}
+}
+
+func TestImportedHiddenSecretNeverCarriesAValue(t *testing.T) {
+	if key := importedSecrets(t)["SIGNING_KEY"]; !key.Hidden || key.Value != "" {
+		t.Fatalf("SIGNING_KEY = %+v", key)
 	}
 }
