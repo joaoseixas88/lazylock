@@ -39,10 +39,11 @@ go run ./cmd/lazylock -demo
 |---|---|---|
 | `1` `2` `3` `4` | anywhere | focus Projects, Paths / Environments, Actions, Secrets |
 | `↑` `↓` / `j` `k` | panes | move |
+| `[` / `]` | anywhere | previous / next environment, keeping the path or its closest parent |
 | `enter` | Projects, Paths | focus the next pane |
 | `enter` | Secrets | details: the whole value, comment, tags, version and origin |
 | `enter` | Actions | run the selected action |
-| `/` | Projects, Paths, Secrets | filter by name, environment and path, or key; never by value |
+| `/` | Projects, Paths, Secrets | filter by project name, folder path or key; never by value |
 | `space` / `a` | Secrets, details, comparison | reveal the selected value / every value |
 | `y` / `Y` | Secrets, details | copy the value / copy `KEY=value` lines |
 | `v` / `V` | Secrets | mark the selected secret / mark or unmark every visible one |
@@ -55,7 +56,9 @@ go run ./cmd/lazylock -demo
 | `?` | anywhere | list every key |
 | `q` / `ctrl+c` | anywhere | quit; `ctrl+c` also works inside dialogs |
 
-Switching to another instance lives in the Actions menu; the current session
+The paths pane shows one environment at a time, its folders as a tree, with
+the environments as tabs in its title. Switching to another instance lives in
+the Actions menu; the current session
 stays stored, and `esc` on the next screen comes back to it. A secret you may
 list but not read says so rather than showing a blank.
 
