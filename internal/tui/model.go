@@ -42,6 +42,7 @@ type Model struct {
 	secrets  list[domain.Secret]
 
 	activePane pane
+	menuCursor int
 	reveal     reveal
 	marks      marks
 	overlay    overlay
@@ -186,6 +187,8 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		cmd = m.retry()
 	case key.Matches(k, m.keys.Help):
 		m.overlay = helpOverlay{}
+	case key.Matches(k, m.keys.Enter) && m.activePane == actionsPane:
+		return m.runAction(m.actions()[m.menuCursor])
 	case key.Matches(k, m.keys.Enter):
 		m.enter()
 	case m.activePane == secretsPane && key.Matches(k, m.keys.Reveal):
@@ -313,6 +316,8 @@ func (m *Model) move(delta int) tea.Cmd {
 			m.scopes.move(delta)
 		case secretsPane:
 			m.secrets.move(delta)
+		case actionsPane:
+			m.menuCursor = clamp(m.menuCursor+delta, len(m.actions()))
 		}
 	})
 }

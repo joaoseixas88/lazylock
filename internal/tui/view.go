@@ -106,14 +106,7 @@ func (m Model) panel(title, query string, items []string, state loadState, err e
 }
 
 func (m Model) actionsPanel() string {
-	return frame("[3] Actions", []string{
-		mutedStyle.Render("  space  reveal value"),
-		mutedStyle.Render("  r      retry pane"),
-		mutedStyle.Render("  ?      help"),
-		"",
-		mutedStyle.Render("  Export, copy, and edit"),
-		mutedStyle.Render("  arrive in the next milestone."),
-	}, m.leftWidth, m.actionsHeight, m.focused(actionsPane))
+	return m.panel("[3] Actions", "", m.actionItems(), stateLoaded, nil, actionsPane, m.leftWidth, m.actionsHeight)
 }
 
 func frame(title string, lines []string, width, height int, focused bool) string {
@@ -151,6 +144,8 @@ func (m Model) cursorFor(target pane) int {
 		return m.projects.cursor
 	case contextPane:
 		return m.scopes.cursor
+	case actionsPane:
+		return m.menuCursor
 	default:
 		return m.secrets.cursor
 	}
