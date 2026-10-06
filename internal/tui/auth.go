@@ -218,11 +218,17 @@ func (m Model) needsNewLogin(err error) bool {
 
 func (m Model) expireSession() (Model, tea.Cmd) {
 	_ = m.store.Delete(m.cfg.SiteURL)
+	m.endSession()
+	next, cmd, _ := m.toLogin(errSessionExpired)
+	return next, cmd
+}
+
+func (m *Model) endSession() {
 	m.projects.reset()
 	m.scopes.reset()
 	m.secrets.reset()
-	next, cmd, _ := m.toLogin(errSessionExpired)
-	return next, cmd
+	m.reveal.mask()
+	m.overlay = nil
 }
 
 func (m Model) toLogin(err error) (Model, tea.Cmd, bool) {

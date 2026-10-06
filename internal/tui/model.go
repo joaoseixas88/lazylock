@@ -40,9 +40,10 @@ type Model struct {
 	scopes   list[domain.Scope]
 	secrets  list[domain.Secret]
 
-	activePane  pane
-	revealValue bool
-	overlay     overlay
+	activePane pane
+	reveal     reveal
+	overlay    overlay
+	timers     timers
 
 	state   appState
 	cfg     config.Config
@@ -60,9 +61,10 @@ type Model struct {
 // what the -demo flag and the tests use.
 func New(ctx context.Context, catalog domain.Catalog) Model {
 	m := Model{
-		load:  loader{catalog: catalog, ctx: ctx, timeout: 15 * time.Second, debounce: 120 * time.Millisecond},
-		keys:  defaultKeys(),
-		state: stateBrowsing,
+		load:   loader{catalog: catalog, ctx: ctx, timeout: 15 * time.Second, debounce: 120 * time.Millisecond},
+		keys:   defaultKeys(),
+		state:  stateBrowsing,
+		timers: timers{remask: 30 * time.Second, toast: 4 * time.Second},
 	}
 	m.projects.begin() // so the first frame says "Loading…" instead of "No items found."
 	m.resize(100, 30)
@@ -125,6 +127,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.loadScopes(p.ID)
 		}
 		return m, nil
+	case remaskMsg:
+		if msg.gen == m.reveal.gen {
+			m.reveal.mask()
+		}
+		return m, nil
 	case selectScopeMsg:
 		if s, ok := m.scopes.current(); ok && s == msg.at {
 			return m, m.loadSecrets(s)
@@ -156,10 +163,12 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(k, m.keys.Help):
 		m.overlay = helpOverlay{}
 	case m.activePane == secretsPane && key.Matches(k, m.keys.Reveal):
-		m.revealValue = !m.revealValue
+		cmd = m.toggleReveal()
+	case m.activePane == secretsPane && key.Matches(k, m.keys.RevealAll):
+		cmd = m.toggleRevealAll()
 	}
 	if m.activePane != secretsPane {
-		m.revealValue = false
+		m.reveal.mask()
 	}
 	return m, cmd
 }
@@ -208,7 +217,7 @@ func (m Model) handleSecretsLoaded(msg secretsLoadedMsg) (tea.Model, tea.Cmd) {
 	if m.needsNewLogin(msg.err) {
 		return m.expireSession()
 	}
-	m.revealValue = false // never reveal a value the user did not just ask for
+	m.reveal.mask() // never reveal a value the user did not just ask for
 	return m, nil
 }
 
@@ -242,7 +251,7 @@ func (m *Model) retry() tea.Cmd {
 }
 
 func (m *Model) move(delta int) tea.Cmd {
-	m.revealValue = false
+	m.reveal.one = ""
 	switch m.activePane {
 	case projectsPane:
 		before, _ := m.projects.current()

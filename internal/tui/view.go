@@ -167,23 +167,26 @@ func pathLabel(path string) string {
 }
 
 func (m Model) secretItems() (items []string) {
-	for i, secret := range m.secrets.items {
-		items = append(items, fmt.Sprintf("%s=%s", secret.Key, m.secretValue(i, secret)))
+	for _, secret := range m.secrets.items {
+		items = append(items, fmt.Sprintf("%s=%s", secret.Key, m.secretValue(secret)))
 	}
 	return
 }
 
-// secretValue renders the three states a secret can be in. A hidden one says so
+// secretValue renders the states a secret can be in. A hidden one says so
 // whether or not it is revealed, so pressing space on it is never a silent
-// no-op.
-func (m Model) secretValue(i int, s domain.Secret) string {
+// no-op. A row has room for one line, so a multi-line value shows its first.
+func (m Model) secretValue(s domain.Secret) string {
 	switch {
 	case s.Hidden:
 		return mutedStyle.Render("(no read access)")
-	case !m.revealValue || i != m.secrets.cursor:
+	case !m.reveal.shows(s.ID):
 		return "••••••••"
 	case s.Value == "":
 		return mutedStyle.Render("(empty)")
+	}
+	if first, _, multiline := strings.Cut(s.Value, "\n"); multiline {
+		return first + mutedStyle.Render(" …")
 	}
 	return s.Value
 }

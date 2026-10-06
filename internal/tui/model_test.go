@@ -50,13 +50,14 @@ func TestPanelHotkeysFocusPanelsAndResizeUsesTerminalDimensions(t *testing.T) {
 
 	model = run(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("4")})
 	model = run(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(" ")})
-	if !model.revealValue {
+	selected, _ := model.secrets.current()
+	if !model.reveal.shows(selected.ID) {
 		t.Fatal("space should reveal the selected secret value")
 	}
 
 	model = run(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
 	model = run(t, model, tea.KeyMsg{Type: tea.KeyUp})
-	if model.revealValue {
+	if model.reveal.shows(selected.ID) {
 		t.Fatal("changing the selected context must hide its value")
 	}
 }

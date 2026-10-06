@@ -50,6 +50,17 @@ type loader struct {
 	debounce time.Duration
 }
 
+type timers struct{ remask, toast time.Duration }
+
+// later is nil for a zero duration, unlike tea.Tick: a test harness that runs
+// commands synchronously would otherwise sit through every timer.
+func later(d time.Duration, msg tea.Msg) tea.Cmd {
+	if d <= 0 {
+		return nil
+	}
+	return tea.Tick(d, func(time.Time) tea.Msg { return msg })
+}
+
 func (l loader) call(fn func(context.Context) error) {
 	ctx, cancel := context.WithTimeout(l.ctx, l.timeout)
 	defer cancel()

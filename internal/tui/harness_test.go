@@ -55,6 +55,7 @@ func exec(t *testing.T, cmd tea.Cmd) []tea.Msg {
 func start(t *testing.T, m Model) Model {
 	t.Helper()
 	m.load.debounce = 0
+	m.timers = timers{}
 	return run(t, m, exec(t, m.Init())...)
 }
 

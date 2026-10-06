@@ -32,7 +32,9 @@ func app(t *testing.T, cfg config.Config) Model {
 	t.Setenv(config.EnvPath, t.TempDir()+"/config.json")
 	t.Setenv(credstore.EnvPath, t.TempDir()+"/session.json")
 	t.Setenv(config.EnvToken, "")
-	return NewApp(context.Background(), cfg, &credstore.Store{})
+	m := NewApp(context.Background(), cfg, &credstore.Store{})
+	m.timers = timers{}
+	return m
 }
 
 func TestNewAppAsksForTheInstanceWhenUnconfigured(t *testing.T) {

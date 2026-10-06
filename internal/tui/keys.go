@@ -5,7 +5,7 @@ import "github.com/charmbracelet/bubbles/key"
 type keyMap struct {
 	Up, Down                           key.Binding
 	Project, Context, Actions, Secrets key.Binding
-	Reveal, Retry                      key.Binding
+	Reveal, RevealAll, Retry           key.Binding
 	Help, Close, Quit, ForceQuit       key.Binding
 }
 
@@ -18,6 +18,7 @@ func defaultKeys() keyMap {
 		Actions:   key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "actions")),
 		Secrets:   key.NewBinding(key.WithKeys("4"), key.WithHelp("4", "secrets")),
 		Reveal:    key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "reveal")),
+		RevealAll: key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "reveal all")),
 		Retry:     key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "retry")),
 		Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Close:     key.NewBinding(key.WithKeys("esc", "q"), key.WithHelp("esc", "close")),
@@ -34,11 +35,11 @@ type bindingGroup struct {
 func (k keyMap) groups() []bindingGroup {
 	return []bindingGroup{
 		{"Panes", []key.Binding{k.Project, k.Context, k.Actions, k.Secrets, k.Up, k.Down, k.Retry}},
-		{"Secrets", []key.Binding{k.Reveal}},
+		{"Secrets", []key.Binding{k.Reveal, k.RevealAll}},
 		{"General", []key.Binding{k.Help, k.Close, k.Quit, k.ForceQuit}},
 	}
 }
 
 func (k keyMap) footer() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Reveal, k.Retry, k.Help, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Reveal, k.RevealAll, k.Retry, k.Help, k.Quit}
 }
