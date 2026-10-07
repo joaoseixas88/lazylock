@@ -4,6 +4,7 @@
 package fake
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"regexp"
@@ -16,18 +17,18 @@ import (
 	"github.com/joaoseixas88/lazylock/internal/domain"
 )
 
-// Catalog is an in-memory domain.Catalog and domain.Writer with knobs for the
-// failure and latency cases a live provider produces but a fixture otherwise
-// never would. Imports are relations between folders, as in Infisical, so a
-// secret stored in one folder shows up in every folder that imports it.
+// Catalog is an in-memory domain.Catalog, domain.Writer and
+// domain.ProjectCreator with knobs for the failure and latency cases a live
+// provider produces but a fixture otherwise never would. Imports are relations
+// between folders, as in Infisical, so a secret stored in one folder shows up
+// in every folder that imports it.
 type Catalog struct {
+	mu       sync.Mutex
 	projects []domain.Project
 	scopes   map[string][]domain.Scope
-
-	mu      sync.Mutex
-	stored  map[domain.Scope][]domain.Secret
-	imports map[domain.Scope][]domain.Scope
-	created int
+	stored   map[domain.Scope][]domain.Secret
+	imports  map[domain.Scope][]domain.Scope
+	created  int
 
 	ProjectsErr, ScopesErr, SecretsErr error
 	// WriteErr fails every write. Approval turns every write into a change
@@ -40,8 +41,9 @@ type Catalog struct {
 }
 
 var (
-	_ domain.Catalog = (*Catalog)(nil)
-	_ domain.Writer  = (*Catalog)(nil)
+	_ domain.Catalog        = (*Catalog)(nil)
+	_ domain.Writer         = (*Catalog)(nil)
+	_ domain.ProjectCreator = (*Catalog)(nil)
 )
 
 func scope(project, slug, name, path string) domain.Scope {
@@ -127,6 +129,8 @@ func (c *Catalog) Projects(ctx context.Context) ([]domain.Project, error) {
 	if c.ProjectsErr != nil {
 		return nil, c.ProjectsErr
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return append([]domain.Project(nil), c.projects...), nil
 }
 
@@ -137,6 +141,8 @@ func (c *Catalog) Scopes(ctx context.Context, projectID string) ([]domain.Scope,
 	if c.ScopesErr != nil {
 		return nil, c.ScopesErr
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return append([]domain.Scope(nil), c.scopes[projectID]...), nil
 }
 
@@ -327,4 +333,31 @@ func (c *Catalog) Delete(ctx context.Context, at domain.Scope, keys []string) (d
 		})
 		return nil
 	})
+}
+
+// CreateProject gives the project Infisical's default environments. Its slug
+// becomes its ID, so a second project with the same slug is rejected. WriteErr
+// fails it; Approval does not apply, since Infisical has no approval policy for
+// creating projects.
+func (c *Catalog) CreateProject(ctx context.Context, p domain.NewProject) (domain.Project, error) {
+	if err := c.enter(ctx); err != nil {
+		return domain.Project{}, err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.WriteErr != nil {
+		return domain.Project{}, c.WriteErr
+	}
+	c.created++
+	project := domain.Project{ID: cmp.Or(p.Slug, fmt.Sprintf("project-%d", c.created)), Name: p.Name}
+	if slices.ContainsFunc(c.projects, func(other domain.Project) bool { return other.ID == project.ID }) {
+		return domain.Project{}, fmt.Errorf("%w: A project with the slug %q already exists", domain.ErrRejected, project.ID)
+	}
+	c.projects = append(slices.Clone(c.projects), project)
+	c.scopes[project.ID] = []domain.Scope{
+		scope(project.ID, "dev", "Development", "/"),
+		scope(project.ID, "staging", "Staging", "/"),
+		scope(project.ID, "prod", "Production", "/"),
+	}
+	return project, nil
 }

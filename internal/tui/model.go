@@ -43,15 +43,16 @@ type Model struct {
 	scopes   list[domain.Scope]
 	secrets  list[domain.Secret]
 
-	activePane pane
-	menuCursor int
-	chosenPath string
-	reveal     reveal
-	marks      marks
-	overlay    overlay
-	toast      toast
-	timers     timers
-	seq        int
+	activePane     pane
+	menuCursor     int
+	chosenPath     string
+	createdProject string
+	reveal         reveal
+	marks          marks
+	overlay        overlay
+	toast          toast
+	timers         timers
+	seq            int
 
 	filtering   bool
 	filterInput textinput.Model
@@ -158,6 +159,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.compared(msg)
 	case writtenMsg:
 		return m.written(msg)
+	case projectCreatedMsg:
+		return m.projectCreated(msg)
 	case rawLoadedMsg:
 		return m.rawLoaded(msg)
 	case conflictMsg:
@@ -240,6 +243,8 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case key.Matches(k, m.keys.New):
 		cmd = m.openCreate()
+	case key.Matches(k, m.keys.NewProject):
+		cmd = m.openNewProject()
 	case key.Matches(k, m.keys.PrevEnv):
 		cmd = m.cycleEnv(-1)
 	case key.Matches(k, m.keys.NextEnv):
@@ -264,6 +269,10 @@ func (m Model) handleProjectsLoaded(msg projectsLoadedMsg) (tea.Model, tea.Cmd) 
 	}
 	if m.needsNewLogin(msg.err) {
 		return m.expireSession()
+	}
+	if id := m.createdProject; id != "" {
+		m.createdProject = ""
+		m.projects.selectWhere(func(p domain.Project) bool { return p.ID == id })
 	}
 	p, ok := m.projects.current()
 	if !ok {

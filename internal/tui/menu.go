@@ -38,6 +38,9 @@ func (m Model) actions() []action {
 	if _, ok := m.writer(); ok {
 		actions = append(actions, action{binding: k.New}, action{binding: k.Edit}, action{binding: k.Delete}, action{binding: k.CopyTo})
 	}
+	if _, ok := m.projectCreator(); ok {
+		actions = append(actions, action{binding: k.NewProject})
+	}
 	return append(actions, []action{
 		{binding: k.Logout},
 		{label: "switch instance", run: func(m Model) (Model, tea.Cmd) {

@@ -9,8 +9,8 @@ LazyLock reads a real Infisical instance: projects, environments, folder paths,
 and the secrets at each path, with values hidden until you ask for them. Secrets
 imported from other paths are included and say where they come from, so what
 you copy or export matches what `infisical run` would inject. It can also change
-secrets, always after a review you confirm; `-readonly` starts it unable to
-change anything.
+secrets and create projects, always after a review you confirm; `-readonly`
+starts it unable to change anything.
 
 ```sh
 go run ./cmd/lazylock
@@ -51,6 +51,7 @@ go run ./cmd/lazylock -demo
 | `x` | anywhere | export the marked secrets, or the whole path |
 | `c` | anywhere | compare the path with the same path in another environment |
 | `n` | anywhere | new secret in the selected path |
+| `N` | anywhere | new project |
 | `e` | Secrets, details | edit the selected secret's value, comment or key |
 | `d` | Secrets | delete the selected secret, or the marked ones |
 | `C` | Secrets | copy the marked secrets, or the selected one, to the same path in another environment |
@@ -110,6 +111,13 @@ locked and is never sent unless you replace it with `ctrl+r`. Just before
 saving, LazyLock checks the secret's version; if someone else changed it after
 you opened it, the review comes back with what it holds now and asks again.
 
+`N` creates a project from a name and, optionally, a description and a slug;
+without a slug, Infisical makes one from the name. The project goes to the
+organization you logged in to, with Infisical's default environments
+(Development, Staging and Production) and you as its admin, and LazyLock selects
+it. Infisical allows two projects with the same name, so the review only points
+it out.
+
 Copying to another environment first shows the plan: keys it creates, values it
 overwrites, ones that are already the same and are skipped, and references that
 will resolve in the target. Imported secrets and values you cannot read are
@@ -132,5 +140,6 @@ Environment variables override it and are never written back:
 
 ## Roadmap
 
-A second provider is not implemented, though the `domain.Catalog` and
-`domain.Writer` ports exist so one can be added without touching the TUI.
+A second provider is not implemented, though the `domain.Catalog`,
+`domain.Writer` and `domain.ProjectCreator` ports exist so one can be added
+without touching the TUI.

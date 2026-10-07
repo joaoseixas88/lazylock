@@ -38,6 +38,16 @@ type Writer interface {
 	Upsert(ctx context.Context, at Scope, secrets []Draft) (Outcome, error)
 }
 
+// ProjectCreator creates projects. A Catalog that also implements it lets the
+// TUI create them. Its errors mean what a Writer's do.
+type ProjectCreator interface {
+	CreateProject(ctx context.Context, p NewProject) (Project, error)
+}
+
+// NewProject is a project about to be created. An empty Slug leaves the choice
+// to the provider.
+type NewProject struct{ Name, Description, Slug string }
+
 // Draft is a secret about to be written.
 type Draft struct{ Key, Value, Comment string }
 

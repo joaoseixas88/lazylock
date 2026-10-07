@@ -223,3 +223,47 @@ func TestUpsertIsOneAtomicBatchThatLeavesEmptyCommentsOut(t *testing.T) {
 		t.Fatalf("an empty comment must be left out so the target keeps its own: %v", second)
 	}
 }
+
+func TestCreatingAProjectPostsASecretManagerProject(t *testing.T) {
+	catalog, got := writeServer(t, http.StatusOK, `{"project":{"id":"p-9","name":"Billing","slug":"billing-x1y2","orgId":"org-1","environments":[]}}`)
+	project, err := catalog.CreateProject(context.Background(), domain.NewProject{Name: "Billing", Description: "Invoices", Slug: "billing"})
+	if err != nil || project != (domain.Project{ID: "p-9", Name: "Billing"}) {
+		t.Fatalf("CreateProject = %+v, %v", project, err)
+	}
+	if got.method != http.MethodPost || got.path != "/api/v1/projects" || got.contentType != "application/json" {
+		t.Fatalf("request = %s %s (%s)", got.method, got.path, got.contentType)
+	}
+	want := map[string]any{"projectName": "Billing", "projectDescription": "Invoices", "slug": "billing", "type": "secret-manager"}
+	if len(got.body) != len(want) {
+		t.Fatalf("body = %v, want %v", got.body, want)
+	}
+	for k, v := range want {
+		if got.body[k] != v {
+			t.Fatalf("body[%s] = %v, want %v", k, got.body[k], v)
+		}
+	}
+}
+
+func TestCreatingAProjectLeavesEmptyFieldsToTheServer(t *testing.T) {
+	catalog, got := writeServer(t, http.StatusOK, `{"project":{"id":"p-9","name":"Billing"}}`)
+	if _, err := catalog.CreateProject(context.Background(), domain.NewProject{Name: "Billing"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := got.body["slug"]; ok || got.body["projectDescription"] != nil {
+		t.Fatalf("empty fields must be left out, so the server picks the slug: %v", got.body)
+	}
+}
+
+func TestCreatingAProjectSaysWhetherTheServerCreatedNothing(t *testing.T) {
+	catalog, _ := writeServer(t, http.StatusBadRequest, `{"statusCode":400,"message":"A project with the slug \"billing\" already exists in your organization.","error":"BadRequest"}`)
+	_, err := catalog.CreateProject(context.Background(), domain.NewProject{Name: "Billing", Slug: "billing"})
+	if !errors.Is(err, domain.ErrRejected) {
+		t.Fatalf("a 400 must be a rejection: %v", err)
+	}
+
+	catalog, _ = writeServer(t, http.StatusOK, `{}`)
+	_, err = catalog.CreateProject(context.Background(), domain.NewProject{Name: "Billing"})
+	if err == nil || errors.Is(err, domain.ErrRejected) {
+		t.Fatalf("a reply without the project leaves the outcome unknown: %v", err)
+	}
+}

@@ -25,6 +25,14 @@ func (m Model) writer() (domain.Writer, bool) {
 	return w, ok
 }
 
+func (m Model) projectCreator() (domain.ProjectCreator, bool) {
+	if !m.writes {
+		return nil, false
+	}
+	c, ok := m.load.catalog.(domain.ProjectCreator)
+	return c, ok
+}
+
 func (m *Model) readOnly() tea.Cmd {
 	if !m.writes {
 		return m.notify(toastError, "Read-only: LazyLock was started with -readonly")

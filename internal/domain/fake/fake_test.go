@@ -3,6 +3,7 @@ package fake
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/joaoseixas88/lazylock/internal/domain"
@@ -219,5 +220,33 @@ func TestUpsertCreatesAndOverwritesKeepingTargetComments(t *testing.T) {
 	}
 	if s := stored["FRESH"]; s.Value != "f" || s.Comment != "brand new" {
 		t.Fatalf("created = %+v", s)
+	}
+}
+
+func TestCreateProjectAddsOneWithDefaultEnvironments(t *testing.T) {
+	ctx := context.Background()
+	catalog := DemoCatalog()
+	project, err := catalog.CreateProject(ctx, domain.NewProject{Name: "Billing", Slug: "billing"})
+	if err != nil || project != (domain.Project{ID: "billing", Name: "Billing"}) {
+		t.Fatalf("CreateProject = %+v, %v", project, err)
+	}
+	projects, _ := catalog.Projects(ctx)
+	if projects[len(projects)-1] != project {
+		t.Fatalf("projects = %+v", projects)
+	}
+	scopes, _ := catalog.Scopes(ctx, project.ID)
+	var envs []string
+	for _, s := range scopes {
+		envs = append(envs, s.EnvName+" "+s.Path)
+	}
+	if want := []string{"Development /", "Staging /", "Production /"}; !slices.Equal(envs, want) {
+		t.Fatalf("scopes = %v, want %v", envs, want)
+	}
+
+	if _, err := catalog.CreateProject(ctx, domain.NewProject{Name: "Billing again", Slug: "billing"}); !errors.Is(err, domain.ErrRejected) {
+		t.Fatalf("a taken slug must be rejected: %v", err)
+	}
+	if other, err := catalog.CreateProject(ctx, domain.NewProject{Name: "Billing"}); err != nil || other.ID == project.ID {
+		t.Fatalf("without a slug the catalog picks a free ID: %+v, %v", other, err)
 	}
 }

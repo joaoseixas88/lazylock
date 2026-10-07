@@ -10,41 +10,43 @@ type keyMap struct {
 	Filter, Enter, Open, Compare       key.Binding
 	Logout, PrevEnv, NextEnv           key.Binding
 	New, Edit, Delete, CopyTo          key.Binding
+	NewProject                         key.Binding
 	Help, Close, Quit, ForceQuit       key.Binding
 }
 
 func defaultKeys() keyMap {
 	return keyMap{
-		Up:        key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
-		Down:      key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
-		Project:   key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "projects")),
-		Context:   key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "paths / environments")),
-		Actions:   key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "actions")),
-		Secrets:   key.NewBinding(key.WithKeys("4"), key.WithHelp("4", "secrets")),
-		Reveal:    key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "reveal")),
-		RevealAll: key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "reveal all")),
-		Copy:      key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "copy value")),
-		CopyLines: key.NewBinding(key.WithKeys("Y"), key.WithHelp("Y", "copy KEY=value")),
-		Mark:      key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "mark")),
-		MarkAll:   key.NewBinding(key.WithKeys("V"), key.WithHelp("V", "mark all / none")),
-		Export:    key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "export")),
-		Retry:     key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "retry")),
-		Back:      key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "clear filter, then marks")),
-		Filter:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
-		Enter:     key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "details / next pane")),
-		Open:      key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open in browser")),
-		Compare:   key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "compare environments")),
-		Logout:    key.NewBinding(key.WithKeys("L"), key.WithHelp("L", "log out")),
-		PrevEnv:   key.NewBinding(key.WithKeys("["), key.WithHelp("[", "previous environment")),
-		NextEnv:   key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "next environment")),
-		New:       key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new secret")),
-		Edit:      key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
-		Delete:    key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete")),
-		CopyTo:    key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "copy to environment")),
-		Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
-		Close:     key.NewBinding(key.WithKeys("esc", "q"), key.WithHelp("esc", "close")),
-		Quit:      key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
-		ForceQuit: key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp("ctrl+c", "quit from anywhere")),
+		Up:         key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
+		Down:       key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
+		Project:    key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "projects")),
+		Context:    key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "paths / environments")),
+		Actions:    key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "actions")),
+		Secrets:    key.NewBinding(key.WithKeys("4"), key.WithHelp("4", "secrets")),
+		Reveal:     key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "reveal")),
+		RevealAll:  key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "reveal all")),
+		Copy:       key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "copy value")),
+		CopyLines:  key.NewBinding(key.WithKeys("Y"), key.WithHelp("Y", "copy KEY=value")),
+		Mark:       key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "mark")),
+		MarkAll:    key.NewBinding(key.WithKeys("V"), key.WithHelp("V", "mark all / none")),
+		Export:     key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "export")),
+		Retry:      key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "retry")),
+		Back:       key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "clear filter, then marks")),
+		Filter:     key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
+		Enter:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "details / next pane")),
+		Open:       key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open in browser")),
+		Compare:    key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "compare environments")),
+		Logout:     key.NewBinding(key.WithKeys("L"), key.WithHelp("L", "log out")),
+		PrevEnv:    key.NewBinding(key.WithKeys("["), key.WithHelp("[", "previous environment")),
+		NextEnv:    key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "next environment")),
+		New:        key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new secret")),
+		NewProject: key.NewBinding(key.WithKeys("N"), key.WithHelp("N", "new project")),
+		Edit:       key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
+		Delete:     key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete")),
+		CopyTo:     key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "copy to environment")),
+		Help:       key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+		Close:      key.NewBinding(key.WithKeys("esc", "q"), key.WithHelp("esc", "close")),
+		Quit:       key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
+		ForceQuit:  key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp("ctrl+c", "quit from anywhere")),
 	}
 }
 
@@ -57,7 +59,7 @@ func (k keyMap) groups() []bindingGroup {
 	return []bindingGroup{
 		{"Panes", []key.Binding{k.Project, k.Context, k.Actions, k.Secrets, k.Up, k.Down, k.PrevEnv, k.NextEnv, k.Enter, k.Filter, k.Retry}},
 		{"Secrets", []key.Binding{k.Reveal, k.RevealAll, k.Copy, k.CopyLines, k.Mark, k.MarkAll, k.Export, k.Compare, k.Open}},
-		{"Write", []key.Binding{k.New, k.Edit, k.Delete, k.CopyTo}},
+		{"Write", []key.Binding{k.New, k.NewProject, k.Edit, k.Delete, k.CopyTo}},
 		{"General", []key.Binding{k.Back, k.Help, k.Logout, k.Close, k.Quit, k.ForceQuit}},
 	}
 }

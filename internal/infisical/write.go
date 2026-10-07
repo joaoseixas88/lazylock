@@ -207,3 +207,26 @@ func (c *Catalog) Upsert(ctx context.Context, at domain.Scope, secrets []domain.
 	}
 	return reply.outcome()
 }
+
+var _ domain.ProjectCreator = (*Catalog)(nil)
+
+// CreateProject creates a project with Infisical's default environments in the
+// session's organization, with the session's user as its admin.
+func (c *Catalog) CreateProject(ctx context.Context, p domain.NewProject) (domain.Project, error) {
+	body := struct {
+		ProjectName        string `json:"projectName"`
+		ProjectDescription string `json:"projectDescription,omitempty"`
+		Slug               string `json:"slug,omitempty"`
+		Type               string `json:"type"`
+	}{p.Name, p.Description, p.Slug, secretManager}
+	var reply struct {
+		Project *wireProject `json:"project"`
+	}
+	if err := c.client.do(ctx, http.MethodPost, "/v1/projects", nil, body, &reply); err != nil {
+		return domain.Project{}, err
+	}
+	if reply.Project == nil || reply.Project.ID == "" {
+		return domain.Project{}, errors.New("infisical answered without the project")
+	}
+	return mapProjects(wireProjectList{Projects: []wireProject{*reply.Project}})[0], nil
+}

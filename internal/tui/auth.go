@@ -235,7 +235,7 @@ func (m *Model) endSession() {
 	m.overlay = nil
 	m.filtering = false
 	m.projects.query, m.scopes.query, m.secrets.query = "", "", ""
-	m.scopes.group, m.scopes.preferred, m.chosenPath = "", "", ""
+	m.scopes.group, m.scopes.preferred, m.chosenPath, m.createdProject = "", "", "", ""
 }
 
 func (m Model) toLogin(err error) (Model, tea.Cmd, bool) {

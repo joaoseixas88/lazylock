@@ -21,6 +21,10 @@ type Catalog struct {
 
 var _ domain.Catalog = (*Catalog)(nil)
 
+// secretManager is the only project type LazyLock lists, and so the type of
+// every project it creates.
+const secretManager = "secret-manager"
+
 func NewCatalog(client *Client) *Catalog { return &Catalog{client: client} }
 
 func (c *Catalog) Projects(ctx context.Context) ([]domain.Project, error) {
@@ -28,7 +32,7 @@ func (c *Catalog) Projects(ctx context.Context) ([]domain.Project, error) {
 		"includeRoles": {strconv.FormatBool(false)},
 		// Without this filter a KMS, PKI or secret-scanning project shows up in
 		// the pane and every drill-down into it comes back empty.
-		"type": {"secret-manager"},
+		"type": {secretManager},
 	}
 	var list wireProjectList
 	if err := c.client.get(ctx, "/v1/projects", query, &list); err != nil {
